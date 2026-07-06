@@ -113,27 +113,29 @@ def identify_file(filepath, api_key=None, timeout=30):
             meta='recordings+releasegroups',
             timeout=timeout,
         )
+
+        # 取最佳匹配
+        # 注意: acoustid.match() 返回生成器，网络请求在迭代时才实际发生，
+        # 所以 for 循环必须在 try/except 内部
+        best = None
+        best_score = 0
+        for score, recording_id, title, artist in results:
+            if score > best_score:
+                best_score = score
+                best = {
+                    'score': score,
+                    'recording_id': recording_id,
+                    'title': title or '',
+                    'artist': artist or '',
+                    'album': '',
+                    'duration': 0,
+                }
     except acoustid.NoBackendError:
         return None
     except acoustid.WebServiceError:
         return None
     except Exception:
         return None
-
-    # 取最佳匹配
-    best = None
-    best_score = 0
-    for score, recording_id, title, artist in results:
-        if score > best_score:
-            best_score = score
-            best = {
-                'score': score,
-                'recording_id': recording_id,
-                'title': title or '',
-                'artist': artist or '',
-                'album': '',
-                'duration': 0,
-            }
 
     if best and best_score > 0.5:
         return best
