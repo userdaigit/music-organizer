@@ -25,6 +25,7 @@ import time
 import urllib.request
 import urllib.parse
 from difflib import SequenceMatcher
+from version import MB_USER_AGENT
 
 # ============================================================
 # 语言检测
@@ -135,9 +136,7 @@ def find_similar_artists(artists, threshold=0.85):
 # MusicBrainz 歌手查询
 # ============================================================
 MB_API_BASE = "https://musicbrainz.org/ws/2/artist"
-# User-Agent 必须包含联系方式，否则会被 MusicBrainz 限流
-# 参考: https://musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting
-MB_USER_AGENT = "MusicOrganizer/1.0 (https://github.com/userdaigit/music-organizer)"
+# User-Agent 从 version.py 统一管理（文件顶部已导入）
 
 
 def query_musicbrainz_artist(artist_name, timeout=10):
@@ -369,6 +368,33 @@ class ArtistNormalizer:
 
         # 网络未启用或查询失败
         return artist_name
+
+    def normalize_one(self, artist_name):
+        """
+        规范化单个歌手名（含本地模糊匹配优化）。
+        适合需要逐个显示进度的场景。
+        """
+        if not artist_name:
+            return '未知歌手'
+
+        # 1. 手动映射表
+        if artist_name in self.name_map:
+            return self.name_map[artist_name]
+
+        # 2. 查询缓存
+        if artist_name in self.cache:
+            return self.cache[artist_name]
+
+        # 3. 本地模糊匹配（在已缓存的名称中找相似项）
+        for cached_name, canonical in self.cache.items():
+            if similarity(artist_name, cached_name) > 0.9:
+                self.cache[artist_name] = canonical
+                self._save_cache()
+                return canonical
+
+        # 4. MusicBrainz 网络查询 / 返回原始名
+        result = self.normalize(artist_name)
+        return result
 
     def normalize_batch(self, artist_names):
         """

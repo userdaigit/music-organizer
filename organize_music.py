@@ -43,6 +43,8 @@ from encoding_fix import fix_tags_encoding, normalize_text, is_garbled
 from artist_normalizer import ArtistNormalizer, detect_language, similarity
 from scraper import MusicBrainzScraper
 from fingerprint import FingerprintIdentifier
+from version import __version__
+from progress import ProgressBar, progress_iter
 
 # ============================================================
 # 配置
@@ -447,7 +449,7 @@ def organize(source_dir, output_dir, name_map_path,
              use_network_artist=True):
     """主整理函数"""
     print("=" * 70)
-    print("  飞牛NAS 音乐库一键整理工具 v1.0")
+    print(f"  飞牛NAS 音乐库一键整理工具 v{__version__}")
     print("=" * 70)
     print(f"  源目录:     {source_dir}")
     print(f"  输出目录:   {output_dir}")
@@ -458,6 +460,36 @@ def organize(source_dir, output_dir, name_map_path,
     print(f"  音频指纹:   {'是' if use_fingerprint else '否'}")
     print(f"  歌手规范化: {'联网' if use_network_artist else '仅本地'}")
     print("=" * 70)
+    print()
+
+    # 检查源目录
+    if not Path(source_dir).is_dir():
+        print(f"[错误] 源目录不存在或不是目录: {source_dir}")
+        print(f"       请用 -s 参数指定有效的源音乐目录路径")
+        return
+
+    # 检查/创建输出目录
+    output_path = Path(output_dir)
+    if not output_path.exists():
+        if dry_run:
+            print(f"[提示] 输出目录不存在（试运行模式不自动创建）: {output_dir}")
+            print(f"       正式运行时会自动创建该目录")
+        else:
+            print(f"[提示] 输出目录不存在，正在自动创建: {output_dir}")
+            try:
+                output_path.mkdir(parents=True, exist_ok=True)
+                print(f"       创建成功")
+            except PermissionError:
+                print(f"[错误] 无权限创建输出目录: {output_dir}")
+                print(f"       请手动创建该目录，或指定一个有写权限的路径")
+                return
+            except Exception as e:
+                print(f"[错误] 创建输出目录失败: {e}")
+                print(f"       请手动创建该目录: mkdir -p \"{output_dir}\"")
+                return
+    elif not output_path.is_dir():
+        print(f"[错误] 输出路径已存在但不是目录: {output_dir}")
+        return
     print()
 
     # 加载配置
@@ -507,13 +539,16 @@ def organize(source_dir, output_dir, name_map_path,
     tag_count = 0
     fname_count = 0
 
-    for fp in audio_files:
+    bar = ProgressBar("提取元数据", len(audio_files), unit="首")
+    for i, fp in enumerate(audio_files):
         meta = extract_metadata(fp, encoding_fixed_count)
         all_meta.append(meta)
         if meta['tag_source'] == 'tags':
             tag_count += 1
         else:
             fname_count += 1
+        bar.update(i + 1)
+    bar.finish()
 
     print(f"  标签完整: {tag_count} 首")
     print(f"  从文件名解析: {fname_count} 首")
@@ -526,7 +561,14 @@ def organize(source_dir, output_dir, name_map_path,
     all_artists = sorted(set(m['artist'] for m in all_meta if m['artist'] != '未知歌手'))
     print(f"  发现 {len(all_artists)} 位歌手，正在规范化...")
 
-    artist_mapping = artist_normalizer.normalize_batch(all_artists)
+    # 歌手规范化内部有网络查询，逐个显示进度
+    artist_mapping = {}
+    bar = ProgressBar("规范化歌手", len(all_artists), unit="位")
+    for i, artist in enumerate(all_artists):
+        result = artist_normalizer.normalize_one(artist)
+        artist_mapping[artist] = result
+        bar.update(i + 1)
+    bar.finish()
 
     # 统计合并情况
     merged_count = sum(1 for k, v in artist_mapping.items() if k != v)
@@ -543,18 +585,20 @@ def organize(source_dir, output_dir, name_map_path,
         print()
         print("[4/8] 网络刮削补全元数据...")
         scraped_count = 0
-        for i, meta in enumerate(all_meta):
-            # 只对缺失专辑或年份的歌曲进行刮削
-            need_scrape = (not meta.get('album') or not meta.get('year')) \
-                          and meta['artist'] != '未知歌手'
-            if need_scrape:
-                enriched, changed = scraper.enrich_metadata(
-                    meta,
-                    use_fingerprint=fp_identifier.identify if fp_identifier else None
-                )
-                if changed:
-                    all_meta[i] = enriched
-                    scraped_count += 1
+        need_scrape_items = [(i, m) for i, m in enumerate(all_meta)
+                             if (not m.get('album') or not m.get('year'))
+                             and m['artist'] != '未知歌手']
+        bar = ProgressBar("网络刮削", len(need_scrape_items), unit="首")
+        for j, (i, meta) in enumerate(need_scrape_items):
+            enriched, changed = scraper.enrich_metadata(
+                meta,
+                use_fingerprint=fp_identifier.identify if fp_identifier else None
+            )
+            if changed:
+                all_meta[i] = enriched
+                scraped_count += 1
+            bar.update(j + 1)
+        bar.finish()
         print(f"  刮削补全: {scraped_count} 首")
     else:
         print()
@@ -565,16 +609,20 @@ def organize(source_dir, output_dir, name_map_path,
         print()
         print("[5/8] 音频指纹识别...")
         fp_count = 0
-        for meta in all_meta:
-            if meta['artist'] == '未知歌手' or not meta.get('title'):
-                result = fp_identifier.identify(meta['source_path'])
-                if result:
-                    if result.get('title'):
-                        meta['title'] = result['title']
-                        meta['title_display'] = result['title']
-                    if result.get('artist'):
-                        meta['artist'] = result['artist']
-                    fp_count += 1
+        need_fp_items = [m for m in all_meta
+                         if m['artist'] == '未知歌手' or not m.get('title')]
+        bar = ProgressBar("指纹识别", len(need_fp_items), unit="首")
+        for j, meta in enumerate(need_fp_items):
+            result = fp_identifier.identify(meta['source_path'])
+            if result:
+                if result.get('title'):
+                    meta['title'] = result['title']
+                    meta['title_display'] = result['title']
+                if result.get('artist'):
+                    meta['artist'] = result['artist']
+                fp_count += 1
+            bar.update(j + 1)
+        bar.finish()
         print(f"  指纹识别: {fp_count} 首")
     else:
         print()
@@ -628,7 +676,8 @@ def organize(source_dir, output_dir, name_map_path,
     tasks = [(m, False) for m in album_songs] + \
             [(m, True) for m in singleton_songs]
 
-    for meta, is_singleton in tasks:
+    bar = ProgressBar("复制文件", len(tasks), unit="首")
+    for task_idx, (meta, is_singleton) in enumerate(tasks):
         artist_canonical = artist_mapping.get(meta['artist'], meta['artist'])
         target_rel = build_target_path(meta, is_singleton, artist_canonical)
         ext = Path(meta['source_path']).suffix
@@ -645,10 +694,11 @@ def organize(source_dir, output_dir, name_map_path,
                 'title': meta.get('title_display', meta['title']),
                 'type': 'singleton' if is_singleton else 'album',
             })
+            bar.update(task_idx + 1)
             continue
 
         if dry_run:
-            print(f"  [DRY-RUN] {Path(meta['source_path']).name} -> {target_rel}{ext}")
+            print(f"\r  [DRY-RUN] {Path(meta['source_path']).name} -> {target_rel}{ext}")
             copied += 1
             report.append({
                 'source': meta['source_path'],
@@ -658,6 +708,7 @@ def organize(source_dir, output_dir, name_map_path,
                 'title': meta.get('title_display', meta['title']),
                 'type': 'singleton' if is_singleton else 'album',
             })
+            bar.update(task_idx + 1)
             continue
 
         try:
@@ -679,8 +730,11 @@ def organize(source_dir, output_dir, name_map_path,
                 'type': 'singleton' if is_singleton else 'album',
             })
         except Exception as e:
-            print(f"  [错误] {meta['source_path']}: {e}")
+            print(f"\n  [错误] {meta['source_path']}: {e}")
             errors += 1
+
+        bar.update(task_idx + 1)
+    bar.finish()
 
     # 8. 导出报告
     print()
@@ -704,7 +758,7 @@ def organize(source_dir, output_dir, name_map_path,
     # 生成报告
     with open(report_file, 'w', encoding='utf-8') as f:
         f.write("=" * 70 + "\n")
-        f.write("  音乐库整理报告 v1.0\n")
+        f.write(f"  音乐库整理报告 v{__version__}\n")
         f.write(f"  生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         f.write(f"  源目录: {source_dir}\n")
         f.write(f"  输出目录: {output_dir}\n")
@@ -765,7 +819,7 @@ def organize(source_dir, output_dir, name_map_path,
 # ============================================================
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description='飞牛NAS 音乐库一键整理工具 v1.0',
+        description=f'飞牛NAS 音乐库一键整理工具 v{__version__}',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
@@ -783,10 +837,14 @@ if __name__ == '__main__':
 
   # 不联网（仅本地整理）
   python3 organize_music.py -s /music -o /music2 --no-network
+
+注意: /music 和 /music2 仅为示例路径，请替换为你的实际路径。
         """
     )
-    parser.add_argument('--source', '-s', default='/music', help='源音乐目录')
-    parser.add_argument('--output', '-o', default='/music2', help='输出目录')
+    parser.add_argument('--source', '-s', default='/music',
+                        help='源音乐目录（请替换为你的实际路径）')
+    parser.add_argument('--output', '-o', default='/music2',
+                        help='输出目录（请替换为你的实际路径，不存在时自动创建）')
     parser.add_argument('--name-map', '-m', default='name_map.json', help='中英文名映射JSON')
     parser.add_argument('--dry-run', '-n', action='store_true', help='试运行模式')
     parser.add_argument('--write-tags', '-w', action='store_true', help='补充缺失标签')

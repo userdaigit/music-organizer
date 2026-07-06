@@ -17,11 +17,11 @@ import json
 import time
 import urllib.request
 import urllib.parse
+from version import MB_USER_AGENT
 
 MB_API_BASE = "https://musicbrainz.org/ws/2"
-# User-Agent 必须包含联系方式，否则会被 MusicBrainz 限流
+# User-Agent 从 version.py 统一管理，必须包含联系方式，否则会被 MusicBrainz 限流
 # 参考: https://musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting
-MB_USER_AGENT = "MusicOrganizer/1.0 (https://github.com/userdaigit/music-organizer)"
 
 
 def _mb_request(path, params, timeout=10):

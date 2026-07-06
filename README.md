@@ -117,7 +117,8 @@ python organize_music.py -s "D:\Music" -o "D:\Music2" --write-tags --scrape --fi
 > **注意**：
 > - Windows 上用 `python` 而非 `python3`
 > - 路径可用反斜杠 `D:\Music` 或正斜杠 `D:/Music`，建议加引号避免空格问题
-> - `organize.sh` 是 bash 脚本，Windows 下不需要，直接用上述命令即可
+> - 也可使用 `organize.ps1` 启动脚本：`.\organize.ps1 -Source "D:\Music" -Output "D:\Music2" --dry-run`（需先 `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`）
+> - `organize.sh` 是 bash 脚本，Windows 下用 `organize.ps1` 代替
 > - 音频指纹功能（`--fingerprint`）需安装 [chromaprint](https://github.com/acoustid/chromaprint/releases)，下载 `fpcalc.exe` 并加入系统 PATH
 
 ### 方式三：Docker 部署
@@ -207,16 +208,16 @@ MusicBrainz 是一个开放的公共音乐元数据库，本项目通过其 API 
 
 **User-Agent 修改位置**：
 
-代码中默认值为 `MusicOrganizer/1.0 (https://github.com/userdaigit/music-organizer)`。如需修改为你自己的仓库地址：
+版本号和 User-Agent 已集中管理在 `version.py` 文件中，所有模块统一引用。如需修改为你自己的仓库地址：
 
-- 文件 `artist_normalizer.py` 第 140 行：
+- 文件 `version.py`：
   ```python
-  MB_USER_AGENT = "MusicOrganizer/1.0 (https://github.com/userdaigit/music-organizer)"
+  __version__ = "1.1.0"
+  REPO_URL = "https://github.com/userdaigit/music-organizer"
+  MB_USER_AGENT = f"MusicOrganizer/{__version__} ({REPO_URL})"
   ```
-- 文件 `scraper.py` 第 24 行：
-  ```python
-  MB_USER_AGENT = "MusicOrganizer/1.0 (https://github.com/userdaigit/music-organizer)"
-  ```
+
+修改 `version.py` 即可，`artist_normalizer.py` 和 `scraper.py` 会自动引用。
 
 > **为什么需要改？** MusicBrainz 要求 User-Agent 中包含开发者联系方式（URL 或邮箱），以便在应用异常时联系开发者。不含有效联系方式可能被识别为"匿名"应用而遭限流（503错误）[$TRAE_REF](https://musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting)。
 
