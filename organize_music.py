@@ -515,7 +515,7 @@ def organize(source_dir, output_dir, name_map_path,
     ) if use_scrape else None
 
     fp_identifier = FingerprintIdentifier(
-        cache_file=str(config_dir / 'fingerprint_cache.json')
+        cache=str(config_dir / 'fingerprint_cache.json')
     ) if use_fingerprint else None
 
     if use_fingerprint:
