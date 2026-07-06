@@ -4,7 +4,7 @@
 所有文件统一从此处导入版本号，避免散落多处导致替换遗漏。
 """
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 # MusicBrainz User-Agent 中使用的版本标识
 MB_USER_AGENT_VERSION = f"MusicOrganizer/{__version__}"

@@ -42,7 +42,8 @@ from datetime import datetime
 from encoding_fix import fix_tags_encoding, normalize_text, is_garbled
 from artist_normalizer import ArtistNormalizer, detect_language, similarity
 from scraper import MusicBrainzScraper
-from fingerprint import FingerprintIdentifier
+from kugou_scraper import KugouScraper
+from fingerprint import FingerprintIdentifier, is_default_key, validate_api_key
 from version import __version__
 from progress import ProgressBar, progress_iter
 
@@ -518,9 +519,29 @@ def organize(source_dir, output_dir, name_map_path,
         cache=str(config_dir / 'fingerprint_cache.json')
     ) if use_fingerprint else None
 
+    # 初始化酷狗刮削器
+    kugou_scraper = KugouScraper(
+        cache={}
+    ) if use_scrape else None
+
     if use_fingerprint:
         fp_available = fp_identifier.is_available()
-        print(f"  音频指纹: {'可用' if fp_available else '不可用(需安装chromaprint)'}")
+        fp_key_status = fp_identifier.get_key_status()
+        if fp_key_status == "default":
+            print(f"  音频指纹: 未配置API KEY，或API KEY无效，无法使用音频指纹识别")
+            print(f"           请在 https://acoustid.org/api-key 申请免费 KEY")
+            print(f"           配置方式: 设置环境变量 ACOUSTID_API_KEY 或修改 fingerprint.py")
+        elif fp_key_status is False:
+            print(f"  音频指纹: API KEY 无效，无法使用音频指纹识别")
+        else:
+            print(f"  音频指纹: {'可用' if fp_available else '不可用(需安装chromaprint)'}")
+
+    if kugou_scraper and use_scrape:
+        kugou_available = kugou_scraper.is_available()
+        if not kugou_available:
+            print(f"  酷狗刮削: 接口不可用（可能已失效，不影响其他功能）")
+        else:
+            print(f"  酷狗刮削: 可用（非官方接口，可能随时失效）")
 
     # 1. 扫描
     print()
@@ -580,26 +601,55 @@ def organize(source_dir, output_dir, name_map_path,
             meta['artist_original'] = meta['artist']
             meta['artist'] = artist_mapping[meta['artist']]
 
-    # 4. 网络刮削补全
-    if scraper:
+    # 4. 多刮削源补全（MusicBrainz → 酷狗音乐）
+    if use_scrape:
         print()
-        print("[4/8] 网络刮削补全元数据...")
-        scraped_count = 0
+        print("[4/8] 网络刮削补全元数据（MusicBrainz → 酷狗音乐）...")
+        scraped_mb_count = 0
+        scraped_kugou_count = 0
         need_scrape_items = [(i, m) for i, m in enumerate(all_meta)
                              if (not m.get('album') or not m.get('year'))
                              and m['artist'] != '未知歌手']
-        bar = ProgressBar("网络刮削", len(need_scrape_items), unit="首")
-        for j, (i, meta) in enumerate(need_scrape_items):
-            enriched, changed = scraper.enrich_metadata(
-                meta,
-                use_fingerprint=fp_identifier.identify if fp_identifier else None
-            )
-            if changed:
-                all_meta[i] = enriched
-                scraped_count += 1
-            bar.update(j + 1)
-        bar.finish()
-        print(f"  刮削补全: {scraped_count} 首")
+
+        # 4a. MusicBrainz 刮削
+        if scraper:
+            bar = ProgressBar("MusicBrainz", len(need_scrape_items), unit="首")
+            remaining_items = []
+            for j, (i, meta) in enumerate(need_scrape_items):
+                enriched, changed = scraper.enrich_metadata(
+                    meta,
+                    use_fingerprint=None  # 指纹在步骤5单独处理
+                )
+                if changed:
+                    all_meta[i] = enriched
+                    scraped_mb_count += 1
+                else:
+                    remaining_items.append((i, all_meta[i]))
+                bar.update(j + 1)
+            bar.finish()
+            print(f"  MusicBrainz 补全: {scraped_mb_count} 首")
+        else:
+            remaining_items = need_scrape_items
+
+        # 4b. 酷狗音乐刮削（对 MusicBrainz 未补全的歌曲）
+        if kugou_scraper and kugou_scraper.is_available() and remaining_items:
+            bar = ProgressBar("酷狗音乐  ", len(remaining_items), unit="首")
+            for j, (i, meta) in enumerate(remaining_items):
+                enriched, changed = kugou_scraper.enrich_metadata(meta)
+                if changed:
+                    all_meta[i] = enriched
+                    scraped_kugou_count += 1
+                bar.update(j + 1)
+            bar.finish()
+            print(f"  酷狗音乐补全: {scraped_kugou_count} 首")
+        else:
+            if not kugou_scraper:
+                print(f"  酷狗音乐: 跳过(未启用)")
+            elif not kugou_scraper.is_available():
+                print(f"  酷狗音乐: 接口不可用")
+
+        total_scraped = scraped_mb_count + scraped_kugou_count
+        print(f"  刮削总计: {total_scraped} 首")
     else:
         print()
         print("[4/8] 网络刮削: 跳过(未启用)")
@@ -611,22 +661,25 @@ def organize(source_dir, output_dir, name_map_path,
         fp_count = 0
         need_fp_items = [m for m in all_meta
                          if m['artist'] == '未知歌手' or not m.get('title')]
-        bar = ProgressBar("指纹识别", len(need_fp_items), unit="首")
-        for j, meta in enumerate(need_fp_items):
-            result = fp_identifier.identify(meta['source_path'])
-            if result:
-                if result.get('title'):
-                    meta['title'] = result['title']
-                    meta['title_display'] = result['title']
-                if result.get('artist'):
-                    meta['artist'] = result['artist']
-                fp_count += 1
-            bar.update(j + 1)
-        bar.finish()
-        print(f"  指纹识别: {fp_count} 首")
+        if need_fp_items:
+            bar = ProgressBar("指纹识别", len(need_fp_items), unit="首")
+            for j, meta in enumerate(need_fp_items):
+                result = fp_identifier.identify(meta['source_path'])
+                if result:
+                    if result.get('title'):
+                        meta['title'] = result['title']
+                        meta['title_display'] = result['title']
+                    if result.get('artist'):
+                        meta['artist'] = result['artist']
+                    fp_count += 1
+                bar.update(j + 1)
+            bar.finish()
+            print(f"  指纹识别: {fp_count} 首")
+        else:
+            print(f"  无需指纹识别（所有歌曲已有基本信息）")
     else:
         print()
-        print("[5/8] 音频指纹: 跳过(未启用或不可用)")
+        print("[5/8] 音频指纹: 跳过(未启用或API KEY未配置)")
 
     # 6. 分组 + 去重
     print()

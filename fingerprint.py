@@ -19,11 +19,61 @@
 
 import os
 import time
+import json
+import urllib.request
+import urllib.parse
 
 # AcoustID API Key
 # 需要在 https://acoustid.org/api-key 申请免费的 API Key
 # 这里使用公开的测试 Key，建议替换为自己的
-ACOUSTID_API_KEY = os.environ.get('ACOUSTID_API_KEY', 'lmv7m8k7Fe')
+DEFAULT_API_KEY = 'lmv7m8k7Fe'
+ACOUSTID_API_KEY = os.environ.get('ACOUSTID_API_KEY', DEFAULT_API_KEY)
+
+# AcoustID API 基础 URL
+ACOUSTID_BASE_URL = "https://api.acoustid.org/v2"
+
+
+def is_default_key(api_key=None):
+    """检查是否为默认测试 KEY（未配置自定义 KEY）"""
+    key = api_key or ACOUSTID_API_KEY
+    return key == DEFAULT_API_KEY
+
+
+def validate_api_key(api_key=None, timeout=5):
+    """
+    向 AcoustID 发送测试请求验证 KEY 有效性。
+
+    返回:
+        True  - KEY 有效
+        False - KEY 无效（被拒绝）
+        None  - 网络错误，无法判断
+    """
+    key = api_key or ACOUSTID_API_KEY
+    try:
+        # 发送一个最简单的 lookup 请求（不带 fingerprint）
+        # 有效 KEY: 返回 {"status": "ok", "results": []}
+        # 无效 KEY: 返回 {"status": "error", "error": {"message": "invalid API key", "code": 6}}
+        params = urllib.parse.urlencode({
+            'format': 'json',
+            'client': key,
+            'duration': 0,
+            'fingerprint': '',
+        })
+        url = f"{ACOUSTID_BASE_URL}/lookup?{params}"
+        req = urllib.request.Request(url, headers={'User-Agent': 'MusicOrganizer/1.2.0'})
+        resp = urllib.request.urlopen(req, timeout=timeout)
+        data = json.loads(resp.read().decode('utf-8'))
+
+        if data.get('status') == 'ok':
+            return True
+        elif data.get('status') == 'error':
+            error_msg = data.get('error', {}).get('message', '')
+            if 'invalid' in error_msg.lower() and 'key' in error_msg.lower():
+                return False
+            return False
+        return None
+    except Exception:
+        return None
 
 
 def check_fpcalc():
@@ -131,6 +181,24 @@ class FingerprintIdentifier:
         self.cache = cache or {}
         self.available = check_fpcalc()
         self.last_request_time = 0
+        # KEY 有效性状态：None=未检查, True=有效, False=无效, "default"=默认KEY
+        self._key_status = None
+        self._check_key_status()
+
+    def _check_key_status(self):
+        """检查 API KEY 状态"""
+        if is_default_key(self.api_key):
+            self._key_status = "default"
+        else:
+            # 非默认 KEY，尝试验证
+            valid = validate_api_key(self.api_key)
+            if valid is True:
+                self._key_status = True
+            elif valid is False:
+                self._key_status = False
+            else:
+                # 网络错误，假设有效（后续请求失败会自然降级）
+                self._key_status = True
 
     def identify(self, filepath):
         """识别文件，带缓存"""
@@ -139,6 +207,10 @@ class FingerprintIdentifier:
             return self.cache[path_str]
 
         if not self.available:
+            return None
+
+        # 检查 KEY 状态
+        if self._key_status in ("default", False):
             return None
 
         # AcoustID 限流: 3次/秒
@@ -152,5 +224,21 @@ class FingerprintIdentifier:
         return result
 
     def is_available(self):
-        """检查指纹识别功能是否可用"""
-        return self.available
+        """
+        检查指纹识别功能是否可用。
+        需要 fpcalc 工具 + 有效（非默认）API KEY。
+        """
+        if not self.available:
+            return False
+        if self._key_status in ("default", False):
+            return False
+        return True
+
+    def get_key_status(self):
+        """
+        返回 KEY 状态描述。
+        - "default": 使用默认测试 KEY，未配置
+        - True: KEY 有效
+        - False: KEY 无效
+        """
+        return self._key_status
