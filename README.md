@@ -36,26 +36,94 @@
 
 ## 快速开始
 
-### 方式一：Python 脚本（推荐 NAS 用户）
+> **路径说明**：以下命令中的 `/music`（源目录）和 `/music2`（输出目录）仅为示例路径，实际使用时请替换为你自己的路径。原文件不会被修改，整理结果会复制到输出目录。
+
+### 方式一：Python 脚本（推荐 NAS / Linux 用户）
+
+#### 安装依赖（三选一）
+
+**方案 A：uv 安装（推荐，速度最快）**
+
+[uv](https://github.com/astral-sh/uv) 是用 Rust 编写的新一代 Python 包管理器，比 pip 快 10-100 倍，自带环境管理：
 
 ```bash
-# 1. 安装依赖
-pip3 install mutagen pyacoustid
+# 1. 安装 uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# 2. 试运行（不复制，查看效果）
+# 2. 创建虚拟环境并安装依赖
+cd /path/to/music-organizer
+uv venv venv
+source venv/bin/activate
+uv pip install -r requirements.txt
+
+# 3. 后续使用前激活环境
+source venv/bin/activate
+```
+
+**方案 B：pip + venv（经典方式）**
+
+```bash
+# 1. 创建虚拟环境
+cd /path/to/music-organizer
+python3 -m venv venv
+source venv/bin/activate
+
+# 2. 安装依赖
+pip3 install -r requirements.txt
+
+# 3. 后续使用前激活环境
+source venv/bin/activate
+```
+
+> **提示**：Debian 12 / 飞牛NAS / Ubuntu 23.04+ 等系统直接 `pip install` 会报 `externally-managed-environment` 错误（PEP 668），使用虚拟环境（venv 或 uv）可避免此问题。
+
+**方案 C：apt 安装（无需虚拟环境，但版本可能较旧）**
+
+```bash
+sudo apt install python3-mutagen python3-pyacoustid
+```
+
+#### 运行
+
+```bash
+# 试运行（不复制，仅预览效果）
 python3 organize_music.py -s /music -o /music2 --dry-run
 
-# 3. 正式整理
+# 正式整理
 python3 organize_music.py -s /music -o /music2 --write-tags
 
-# 4. 全功能（含网络刮削 + 音频指纹）
+# 全功能（含网络刮削 + 音频指纹）
 python3 organize_music.py -s /music -o /music2 --write-tags --scrape --fingerprint
 ```
 
-### 方式二：Docker 部署
+### 方式二：Windows 本地使用
+
+Windows 没有 PEP 668 限制，可直接用 pip 安装：
+
+```powershell
+# 1. 安装依赖
+pip install -r requirements.txt
+
+# 2. 试运行（不复制，仅预览效果）
+python organize_music.py -s "D:\Music" -o "D:\Music2" --dry-run
+
+# 3. 正式整理
+python organize_music.py -s "D:\Music" -o "D:\Music2" --write-tags
+
+# 4. 全功能
+python organize_music.py -s "D:\Music" -o "D:\Music2" --write-tags --scrape --fingerprint
+```
+
+> **注意**：
+> - Windows 上用 `python` 而非 `python3`
+> - 路径可用反斜杠 `D:\Music` 或正斜杠 `D:/Music`，建议加引号避免空格问题
+> - `organize.sh` 是 bash 脚本，Windows 下不需要，直接用上述命令即可
+> - 音频指纹功能（`--fingerprint`）需安装 [chromaprint](https://github.com/acoustid/chromaprint/releases)，下载 `fpcalc.exe` 并加入系统 PATH
+
+### 方式三：Docker 部署
 
 ```bash
-# 1. 修改 docker-compose.yml 中的路径
+# 1. 修改 docker-compose.yml 中的路径映射为你的实际路径
 # 2. 试运行
 docker compose run --rm music-organizer --dry-run
 
@@ -67,14 +135,16 @@ docker compose run --rm music-organizer
 
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
-| `-s, --source` | 源音乐目录 | `/music` |
-| `-o, --output` | 输出目录 | `/music2` |
+| `-s, --source` | 源音乐目录（**请替换为你的实际路径**） | `/music` |
+| `-o, --output` | 输出目录（**请替换为你的实际路径**） | `/music2` |
 | `-m, --name-map` | 中英文名映射 JSON 文件 | `name_map.json` |
 | `-n, --dry-run` | 试运行模式（不复制） | 否 |
 | `-w, --write-tags` | 补充缺失标签到新文件 | 否 |
 | `--scrape` | 启用 MusicBrainz 网络刮削 | 否 |
 | `--fingerprint` | 启用音频指纹识别 | 否 |
 | `--no-network` | 禁用所有网络功能 | 否 |
+
+> **提示**：`-s` 和 `-o` 的默认值 `/music`、`/music2` 仅为示例。请务必替换为你实际的源目录和输出目录路径，例如 `-s "/voll/1000/Music" -o "/voll/1000/Music2"`（NAS）或 `-s "D:\Music" -o "D:\Music2"`（Windows）。
 
 ## 依赖及许可证
 
