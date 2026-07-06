@@ -1,0 +1,78 @@
+{
+  "_说明": "歌手中英文名映射表。键=原始标签/文件名中的歌手名，值=目标文件夹名（中文名-英文名格式）。未列出的歌手将使用原始名。运行脚本后会生成 artists_found.txt 列出所有发现的歌手，按需补充。",
+
+  "Jay Chou": "周杰伦-Jay Chou",
+  "周杰伦": "周杰伦-Jay Chou",
+
+  "Eason Chan": "陈奕迅-Eason Chan",
+  "陈奕迅": "陈奕迅-Eason Chan",
+
+  "JJ Lin": "林俊杰-JJ Lin",
+  "林俊杰": "林俊杰-JJ Lin",
+
+  "Faye Wong": "王菲-Faye Wong",
+  "王菲": "王菲-Faye Wong",
+
+  "Jacky Cheung": "张学友-Jacky Cheung",
+  "张学友": "张学友-Jacky Cheung",
+
+  "Andy Lau": "刘德华-Andy Lau",
+  "刘德华": "刘德华-Andy Lau",
+
+  "Mayday": "五月天-Mayday",
+  "五月天": "五月天-Mayday",
+
+  "Stefanie Sun": "孙燕姿-Stefanie Sun",
+  "孙燕姿": "孙燕姿-Stefanie Sun",
+
+  "Fish Leong": "梁静茹-Fish Leong",
+  "梁静茹": "梁静茹-Fish Leong",
+
+  "G.E.M.": "邓紫棋-G.E.M.",
+  "邓紫棋": "邓紫棋-G.E.M.",
+
+  "Li Ronghao": "李荣浩-Li Ronghao",
+  "李荣浩": "李荣浩-Li Ronghao",
+
+  "Joker Xue": "薛之谦-Joker Xue",
+  "薛之谦": "薛之谦-Joker Xue",
+
+  "Mao Buyi": "毛不易-Mao Buyi",
+  "毛不易": "毛不易-Mao Buyi",
+
+  "Hua Chenyu": "华晨宇-Hua Chenyu",
+  "华晨宇": "华晨宇-Hua Chenyu",
+
+  "Leslie Cheung": "张国荣-Leslie Cheung",
+  "张国荣": "张国荣-Leslie Cheung",
+
+  "Teresa Teng": "邓丽君-Teresa Teng",
+  "邓丽君": "邓丽君-Teresa Teng",
+
+  "Jonathan Lee": "李宗盛-Jonathan Lee",
+  "李宗盛": "李宗盛-Jonathan Lee",
+
+  "Wakin Chau": "周华健-Wakin Chau",
+  "周华健": "周华健-Wakin Chau",
+
+  "A-Mei": "张惠妹-A-Mei",
+  "张惠妹": "张惠妹-A-Mei",
+
+  "Jolin Tsai": "蔡依林-Jolin Tsai",
+  "蔡依林": "蔡依林-Jolin Tsai",
+
+  "Jam Hsiao": "萧敬腾-Jam Hsiao",
+  "萧敬腾": "萧敬腾-Jam Hsiao",
+
+  "Leehom Wang": "王力宏-Leehom Wang",
+  "王力宏": "王力宏-Leehom Wang",
+
+  "David Tao": "陶喆-David Tao",
+  "陶喆": "陶喆-David Tao",
+
+  "Wilber Pan": "潘玮柏-Wilber Pan",
+  "潘玮柏": "潘玮柏-Wilber Pan",
+
+  "Show Lo": "罗志祥-Show Lo",
+  "罗志祥": "罗志祥-Show Lo"
+}

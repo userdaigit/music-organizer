@@ -1,0 +1,23 @@
+                    GNU GENERAL PUBLIC LICENSE
+                       Version 2, June 1991
+
+ Copyright (C) 1989, 1991 Free Software Foundation, Inc.,
+ 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ Everyone is permitted to copy and distribute verbatim copies
+ of this license document, but changing it is not allowed.
+
+本项目使用 GNU General Public License v2.0 (GPLv2) 开源协议。
+完整协议文本请参见: https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
+
+选择 GPLv2 的原因：
+本项目依赖 mutagen 库 (https://github.com/quodlibet/mutagen)，
+该库使用 GPLv2 协议。根据 GPLv2 的传染性条款，使用该库的衍生作品
+必须同样使用 GPLv2 协议开源。
+
+GPLv2 核心要求：
+1. 任何人可以自由使用、修改、分发本软件
+2. 分发时必须包含源代码和版权声明
+3. 修改后的作品必须以相同协议开源
+4. 不承担任何担保责任
+
+本仓库的 COPYING 文件包含 GPLv2 完整文本。

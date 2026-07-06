@@ -1,0 +1,38 @@
+# ============================================================
+# 飞牛NAS Docker 部署 - 音乐库整理工具 v1.0
+# ============================================================
+# 使用方法:
+#   1. 修改下方 volumes 中的路径为你的飞牛NAS实际路径
+#   2. 在飞牛NAS的 Docker 中创建此 Compose 项目
+#   3. 试运行: docker compose run --rm music-organizer --dry-run
+#   4. 正式运行: docker compose run --rm music-organizer
+#   5. 全功能: docker compose run --rm music-organizer --write-tags --scrape
+# ============================================================
+
+services:
+  music-organizer:
+    build: .
+    container_name: music-organizer
+    environment:
+      - TZ=Asia/Shanghai
+      - ACOUSTID_API_KEY=${ACOUSTID_API_KEY:-lmv7m8k7Fe}
+    volumes:
+      # 源音乐目录（只读挂载，确保原文件不被修改）
+      - /vol1/1000/music:/music:ro
+      # 输出目录（整理后的文件复制到这里）
+      - /vol1/1000/music2:/music2
+      # 配置目录（name_map.json、缓存、报告等）
+      - ./config:/config
+    command:
+      - "--source"
+      - "/music"
+      - "--output"
+      - "/music2"
+      - "--name-map"
+      - "/config/name_map.json"
+      - "--write-tags"
+      # 如需网络刮削，取消下行注释
+      # - "--scrape"
+      # 如需音频指纹识别，取消下行注释
+      # - "--fingerprint"
+    restart: "no"
