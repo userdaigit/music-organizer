@@ -445,7 +445,7 @@ def scan_audio_files(source_dir):
 # 主整理逻辑
 # ============================================================
 def organize(source_dir, output_dir, name_map_path,
-             dry_run=False, write_tags=False,
+             dry_run=False, do_write_tags=False,
              use_scrape=False, use_fingerprint=False,
              use_network_artist=True):
     """主整理函数"""
@@ -456,7 +456,7 @@ def organize(source_dir, output_dir, name_map_path,
     print(f"  输出目录:   {output_dir}")
     print(f"  映射文件:   {name_map_path}")
     print(f"  模式:       {'试运行(不复制)' if dry_run else '实际复制'}")
-    print(f"  补充标签:   {'是' if write_tags else '否'}")
+    print(f"  补充标签:   {'是' if do_write_tags else '否'}")
     print(f"  网络刮削:   {'是' if use_scrape else '否'}")
     print(f"  音频指纹:   {'是' if use_fingerprint else '否'}")
     print(f"  歌手规范化: {'联网' if use_network_artist else '仅本地'}")
@@ -770,7 +770,7 @@ def organize(source_dir, output_dir, name_map_path,
             copied += 1
 
             # 补充标签到新文件
-            if write_tags and meta['tag_source'] != 'tags':
+            if do_write_tags and meta['tag_source'] != 'tags':
                 if write_tags(target_path, meta):
                     tags_written += 1
 
@@ -822,7 +822,7 @@ def organize(source_dir, output_dir, name_map_path,
         f.write(f"修复乱码: {encoding_fixed_count[0]}\n")
         f.write(f"歌手规范化: 合并 {merged_count} 个变体\n")
         if scraper:
-            f.write(f"网络刮削补全: {scraped_count}\n")
+            f.write(f"网络刮削补全: {scraped_mb_count + scraped_kugou_count} (MusicBrainz: {scraped_mb_count}, 酷狗: {scraped_kugou_count})\n")
         if fp_identifier and fp_identifier.is_available():
             f.write(f"音频指纹识别: {fp_count}\n")
         f.write(f"feat.识别: {feat_count}\n")
@@ -832,7 +832,7 @@ def organize(source_dir, output_dir, name_map_path,
         f.write(f"已复制: {copied}\n")
         f.write(f"已跳过: {skipped}\n")
         f.write(f"错误: {errors}\n")
-        if write_tags:
+        if do_write_tags:
             f.write(f"标签补充: {tags_written}\n")
         f.write(f"\n歌手列表 ({len(artists)} 位):\n")
         for a in artists:
@@ -856,12 +856,12 @@ def organize(source_dir, output_dir, name_map_path,
     print(f"  已复制: {copied}")
     print(f"  已跳过: {skipped}")
     print(f"  错误:   {errors}")
-    if write_tags:
+    if do_write_tags:
         print(f"  标签补充: {tags_written}")
     print(f"  修复乱码: {encoding_fixed_count[0]}")
     print(f"  歌手规范化: 合并 {merged_count} 个变体")
-    if scraper:
-        print(f"  网络刮削: {scraped_count} 首")
+    if scraper or kugou_scraper:
+        print(f"  网络刮削: {scraped_mb_count + scraped_kugou_count} 首 (MB: {scraped_mb_count}, 酷狗: {scraped_kugou_count})")
     print(f"  feat.识别: {feat_count} 首")
     print(f"  去重: {total_dups} 首")
     print("=" * 70)
@@ -914,7 +914,7 @@ if __name__ == '__main__':
         output_dir=args.output,
         name_map_path=args.name_map,
         dry_run=args.dry_run,
-        write_tags=args.write_tags,
+        do_write_tags=args.write_tags,
         use_scrape=args.scrape and use_network,
         use_fingerprint=args.fingerprint,
         use_network_artist=use_network,
