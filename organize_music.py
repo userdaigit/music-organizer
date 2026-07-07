@@ -189,12 +189,32 @@ def infer_from_directory(filepath):
     result = {}
     if len(valid_parents) >= 2:
         # 歌手/专辑/歌曲 结构
-        result['artist'] = valid_parents[1]  # 祖父目录
+        result['artist'] = _extract_chinese_artist(valid_parents[1])  # 祖父目录
         result['album'] = valid_parents[0]   # 父目录
     elif len(valid_parents) == 1:
-        result['artist'] = valid_parents[0]  # 父目录
+        result['artist'] = _extract_chinese_artist(valid_parents[0])  # 父目录
 
     return result
+
+
+def _extract_chinese_artist(dirname):
+    """
+    从目录名中提取歌手名。
+    处理 "中文名-英文名" 格式，只保留中文名部分。
+    如 "周杰伦-Jay Chou" -> "周杰伦"
+    如 "陈小春-³¯¤p¬K" -> "陈小春" (乱码部分在 sanitize 中修复)
+    如果没有中文名，返回原名。
+    """
+    if not dirname:
+        return dirname
+    # 按 dash 分割（中英文之间常见分隔符）
+    parts = dirname.split('-', 1)
+    if len(parts) == 2:
+        left = parts[0].strip()
+        # 如果左半部分包含 CJK 字符，认为是中文名
+        if any(0x4e00 <= ord(ch) <= 0x9fff for ch in left):
+            return left
+    return dirname
 
 
 # ============================================================
@@ -247,6 +267,7 @@ def extract_metadata(filepath, encoding_fixed_count=None):
         'source_path': str(filepath),
         'tag_source': 'tags' if tags.get('title') else 'filename',
         'encoding_fixed': was_fixed,
+        'dir_artist': normalize_text(dir_info.get('artist', '')),  # 目录推断的歌手，用于保持专辑完整性
     }
 
     # 处理标题中的 feat.
@@ -280,6 +301,11 @@ def sanitize(name):
     name, _ = try_fix_encoding(name)
     # NFC 规范化 + 繁体转简体 + 清理控制字符
     name = normalize_text(name)
+    # 去重：如果名字是 X-X 格式且两边相同（如"陈小春-陈小春"），只保留一边
+    if '-' in name:
+        parts = name.split('-', 1)
+        if len(parts) == 2 and parts[0].strip() == parts[1].strip() and parts[0].strip():
+            name = parts[0].strip()
     # 过滤文件名非法字符
     name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', name)
     name = re.sub(r'\s+', ' ', name).strip()
@@ -695,7 +721,10 @@ def organize(source_dir, output_dir, name_map_path,
     print("[6/8] 按歌手和专辑分组，执行去重...")
     groups = defaultdict(list)
     for meta in all_meta:
-        key = (meta['artist'], meta['album'])
+        # 优先用目录推断的歌手分组，保持专辑完整性
+        # （电影原声带/演唱会等专辑中嘉宾歌曲不会被拆散）
+        group_artist = meta.get('dir_artist') or meta['artist']
+        key = (group_artist, meta['album'])
         groups[key].append(meta)
 
     album_songs = []
@@ -745,7 +774,13 @@ def organize(source_dir, output_dir, name_map_path,
     bar = ProgressBar("复制文件", len(tasks), unit="首")
     for task_idx, (meta, is_singleton) in enumerate(tasks):
         try:
-            artist_canonical = artist_mapping.get(meta['artist'], meta['artist'])
+            # 专辑歌曲用目录推断的歌手作为主歌手，保持专辑完整性
+            # 单曲用标签歌手
+            if not is_singleton and meta.get('dir_artist'):
+                group_artist = meta['dir_artist']
+            else:
+                group_artist = meta['artist']
+            artist_canonical = artist_mapping.get(group_artist, group_artist)
             target_rel = build_target_path(meta, is_singleton, artist_canonical)
             ext = Path(meta['source_path']).suffix
             target_path = Path(output_dir) / f"{target_rel}{ext}"
