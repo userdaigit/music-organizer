@@ -278,8 +278,16 @@
 
     "天乐群星": {"display": "群星", "nationality": "cn"},
     "天樂群星": {"display": "群星", "nationality": "cn"},
+    "Various Artists": {"display": "群星", "nationality": "cn"},
+    "Various Artist": {"display": "群星", "nationality": "cn"},
+    "VA": {"display": "群星", "nationality": "cn"},
+    "Various": {"display": "群星", "nationality": "cn"},
+    "群星": {"display": "群星", "nationality": "cn"},
 
     "Unknown Artist": {"display": "未知歌手", "nationality": "cn"},
+    "Unknown": {"display": "未知歌手", "nationality": "cn"},
+    "未知": {"display": "未知歌手", "nationality": "cn"},
+    "未知歌手": {"display": "未知歌手", "nationality": "cn"},
     "中岛美雪": {"display": "Miyuki Nakajima-中岛美雪", "nationality": "foreign"},
     "中島みゆき": {"display": "Miyuki Nakajima-中岛美雪", "nationality": "foreign"},
     "Miyuki Nakajima": {"display": "Miyuki Nakajima-中岛美雪", "nationality": "foreign"},

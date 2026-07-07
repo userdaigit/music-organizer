@@ -295,24 +295,80 @@ NON_ARTIST_PATTERNS = re.compile(
     r'Single$|Singles$|EP$|Albums?$|专辑$|合集$|无损合集$'
     r'|vol\.?\d*$|volume\s*\d*$'
     r'|BONUS$|Bonus$|EXTRA$|Extra$'
-    r'|未知$|Unknown$|Various\s*Artists?$|VA$'
     r'|OST$|Soundtrack$|原声$|原声带$'
     r'|FLAC$|MP3$|WAV$|APE$)',
     re.IGNORECASE
 )
 
+# 合辑类歌手名 → 统一为"群星"
+VARIOUS_ARTIST_PATTERNS = re.compile(
+    r'^(Various\s*Artists?|VA|Various|群星|天乐群星|天樂群星)$',
+    re.IGNORECASE
+)
+
+# 未知类歌手名 → 统一为"未知歌手"
+UNKNOWN_ARTIST_PATTERNS = re.compile(
+    r'^(Unknown|Unknown\s*Artist|未知|未知歌手)$',
+    re.IGNORECASE
+)
+
 
 def _filter_non_artist(name):
-    """过滤非歌手名，返回'未知歌手'如果名字不是合理的歌手名"""
+    """过滤非歌手名，统一变体。"""
     if not name:
         return '未知歌手'
     name = name.strip()
     if NON_ARTIST_PATTERNS.match(name):
         return '未知歌手'
+    if VARIOUS_ARTIST_PATTERNS.match(name):
+        return '群星'
+    if UNKNOWN_ARTIST_PATTERNS.match(name):
+        return '未知歌手'
     # 过长名字（>25字符）可能是歌曲名/专辑名而非歌手名
     if len(name) > 25:
         return '未知歌手'
     return name
+
+
+def _try_identify_unknown_artist(meta):
+    """
+    对未知歌手的歌曲，尝试多种方式识别。
+    策略：
+      1. 路径名识别：从源文件路径中重新提取歌手名
+      2. 返回是否识别成功
+    """
+    if meta.get('artist') != '未知歌手':
+        return False
+
+    source_path = meta.get('source_path', '')
+    if not source_path:
+        return False
+
+    try:
+        from pathlib import Path
+        filepath = Path(source_path)
+        # 从路径中重新提取
+        dir_info = infer_from_directory(filepath)
+        if dir_info.get('artist'):
+            dir_artist = normalize_text(dir_info['artist'])
+            dir_artist = _filter_non_artist(dir_artist)
+            if dir_artist and dir_artist not in ('未知歌手', '群星', 'Unknown Artist'):
+                meta['artist'] = dir_artist
+                meta['dir_artist'] = dir_artist
+                return True
+
+        # 从文件名中提取
+        fname = parse_filename(filepath)
+        if fname.get('artist'):
+            fn_artist = normalize_text(fname['artist'])
+            fn_artist = _filter_non_artist(fn_artist)
+            if fn_artist and fn_artist not in ('未知歌手', '群星', 'Unknown Artist'):
+                meta['artist'] = fn_artist
+                return True
+    except Exception:
+        pass
+
+    return False
 
 
 # ============================================================
@@ -948,6 +1004,25 @@ def organize(source_dir, output_dir, name_map_path,
         if meta['artist'] in artist_mapping:
             meta['artist_original'] = meta['artist']
             meta['artist'] = artist_mapping[meta['artist']]
+
+    # 3b. 对未知歌手尝试路径名识别（在刮削之前）
+    unknown_count = sum(1 for m in all_meta if m['artist'] == '未知歌手')
+    if unknown_count > 0:
+        path_identified = 0
+        for meta in all_meta:
+            if _try_identify_unknown_artist(meta):
+                path_identified += 1
+        if path_identified > 0:
+            print(f"  路径识别: {path_identified}/{unknown_count} 首未知歌曲识别出歌手")
+            # 重新规范化新识别的歌手
+            new_artists = set(m['artist'] for m in all_meta
+                              if m['artist'] != '未知歌手' and m['artist'] not in artist_mapping)
+            for artist in new_artists:
+                artist_mapping[artist] = artist_normalizer.normalize_one(artist)
+            for meta in all_meta:
+                if meta['artist'] in artist_mapping:
+                    meta['artist_original'] = meta.get('artist_original', meta['artist'])
+                    meta['artist'] = artist_mapping[meta['artist']]
 
     # 4. 多刮削源补全（网易云 → MusicBrainz → 酷狗音乐）
     if use_scrape:
