@@ -178,14 +178,48 @@ def compare_files(filepath_a, filepath_b):
 class FingerprintIdentifier:
     """音频指纹识别器，带缓存"""
 
-    def __init__(self, api_key=None, cache=None):
+    def __init__(self, api_key=None, cache=None, cache_file=None):
+        """
+        初始化指纹识别器。
+
+        Args:
+            api_key:    AcoustID API Key
+            cache:      缓存字典（内存缓存）
+            cache_file: 缓存文件路径（JSON格式，持久化到磁盘）
+        """
         self.api_key = api_key or ACOUSTID_API_KEY
+        self.cache_file = cache_file
         self.cache = cache or {}
+        # 如果指定了缓存文件，加载已有缓存
+        if cache_file:
+            self._load_cache()
         self.available = check_fpcalc()
         self.last_request_time = 0
         # KEY 有效性状态：None=未检查, True=有效, False=无效, "default"=默认KEY
         self._key_status = None
         self._check_key_status()
+
+    def _load_cache(self):
+        """从磁盘加载缓存"""
+        if not self.cache_file:
+            return
+        try:
+            with open(self.cache_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                self.cache.update(data)
+        except (FileNotFoundError, json.JSONDecodeError, IOError):
+            pass
+
+    def _save_cache(self):
+        """保存缓存到磁盘"""
+        if not self.cache_file:
+            return
+        try:
+            with open(self.cache_file, 'w', encoding='utf-8') as f:
+                json.dump(self.cache, f, ensure_ascii=False, indent=2)
+        except (IOError, TypeError):
+            pass
 
     def _check_key_status(self):
         """检查 API KEY 状态"""
@@ -223,6 +257,7 @@ class FingerprintIdentifier:
         result = identify_file(filepath, self.api_key)
         self.last_request_time = time.time()
         self.cache[path_str] = result
+        self._save_cache()
         return result
 
     def is_available(self):
