@@ -450,7 +450,7 @@ def test_build_target_path_same_artist_no_feat():
 
 
 def test_build_target_path_foreign_artist():
-    """外国歌手：目录名用原名，文件名中也用原名"""
+    """外国歌手：目录名用外文名-中文译名，文件名中用外文原名"""
     meta = {
         'title_display': 'Numb',
         'artist': 'Linkin Park',
@@ -458,9 +458,9 @@ def test_build_target_path_foreign_artist():
         'year': '2003',
         'track': '13',
     }
-    path = build_target_path(meta, is_singleton=False, artist_canonical='林肯公园-Linkin Park')
-    # 目录用完整格式，文件名中只保留外文原名
-    assert path == '林肯公园-Linkin Park/2003-Meteora/13-Numb-Linkin Park-Meteora'
+    path = build_target_path(meta, is_singleton=False, artist_canonical='Linkin Park-林肯公园')
+    # 目录用完整格式(外文-中文)，文件名中只保留外文原名
+    assert path == 'Linkin Park-林肯公园/2003-Meteora/13-Numb-Linkin Park-Meteora'
 
 
 def test_build_target_path_sanitizes_illegal_chars():
