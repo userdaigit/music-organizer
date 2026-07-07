@@ -307,8 +307,8 @@ def build_target_path(meta, is_singleton, artist_canonical):
     track = meta.get('track', '')
     album = sanitize(meta.get('album')) or ''
 
-    # 群星歌曲：歌手名含多个歌手时，目录名用"群星"避免路径过长
-    if artist.count('.') + artist.count(',') + artist.count('、') >= 4:
+    # 群星歌曲：歌手名含3个或更多歌手时，目录名用"群星"避免路径过长
+    if artist.count('.') + artist.count(',') + artist.count('、') >= 2:
         artist_dir = '群星'
     else:
         artist_dir = artist_display
