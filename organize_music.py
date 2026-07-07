@@ -545,43 +545,62 @@ def file_hash(filepath, algorithm='md5', chunk_size=65536):
 def deduplicate_songs(songs, source_dir):
     """
     同一专辑内歌曲去重。
-    策略：比较文件哈希 + 音频指纹 + 文件大小 + 时长
+    策略：先按文件大小快速分组，只对大小相同的文件计算哈希。
     返回: (去重后的歌曲列表, 被去重的歌曲列表)
     """
     if len(songs) <= 1:
         return songs, []
 
-    # 计算每个文件的哈希
-    hashes = {}
+    # 第1步：按文件大小分组（快速，不读文件内容）
+    size_groups = defaultdict(list)
     for song in songs:
-        h = file_hash(song['source_path'])
-        if h:
-            hashes[song['source_path']] = h
-
-    # 按哈希分组
-    hash_groups = defaultdict(list)
-    for song in songs:
-        h = hashes.get(song['source_path'])
-        if h:
-            hash_groups[h].append(song)
-        else:
-            # 无法计算哈希的，按文件名相似度分组
-            hash_groups[f"nofp_{song['title']}"].append(song)
+        try:
+            size = os.path.getsize(song['source_path'])
+        except OSError:
+            size = 0
+        size_groups[size].append(song)
 
     unique = []
     duplicates = []
 
-    for group_key, group_songs in hash_groups.items():
+    for size, group_songs in size_groups.items():
         if len(group_songs) == 1:
+            # 大小唯一，不可能重复，直接保留
+            unique.extend(group_songs)
+        elif size < 1024:
+            # 极小文件不可靠，全部保留
             unique.extend(group_songs)
         else:
-            # 保留第一个，其余标记为重复
-            unique.append(group_songs[0])
-            for dup in group_songs[1:]:
-                duplicates.append(dup)
+            # 大小相同，需要计算哈希进一步判断
+            for song in group_songs:
+                h = file_hash(song['source_path'])
+                if h:
+                    song['_hash'] = h
+                else:
+                    song['_hash'] = f"nofp_{song['title']}"
 
-    # 对无法哈希的组，按文件名相似度去重
-    # （已在上面 hash_groups 中处理，此处可扩展指纹比较）
+            # 按哈希分组
+            hash_groups = defaultdict(list)
+            for song in group_songs:
+                hash_groups[song['_hash']].append(song)
+
+            for hash_key, h_songs in hash_groups.items():
+                if len(h_songs) == 1:
+                    unique.extend(h_songs)
+                else:
+                    # 哈希相同=完全重复，保留第一个
+                    unique.append(h_songs[0])
+                    for dup in h_songs[1:]:
+                        duplicates.append(dup)
+                    # 清理临时字段
+                    for s in h_songs:
+                        s.pop('_hash', None)
+
+    # 清理临时字段
+    for song in unique:
+        song.pop('_hash', None)
+    for song in duplicates:
+        song.pop('_hash', None)
 
     return unique, duplicates
 
@@ -904,6 +923,9 @@ def organize(source_dir, output_dir, name_map_path,
     # 6. 分组 + 去重
     print()
     print("[6/8] 按歌手和专辑分组，执行去重...")
+    import time as _time
+    _t6_start = _time.time()
+
     groups = defaultdict(list)
     for meta in all_meta:
         # 优先用目录推断的歌手分组，保持专辑完整性
@@ -912,16 +934,40 @@ def organize(source_dir, output_dir, name_map_path,
         key = (group_artist, meta['album'])
         groups[key].append(meta)
 
+    # 统计歌手和专辑数量
+    unique_artists = set()
+    unique_albums = set()
+    for (artist, album) in groups.keys():
+        unique_artists.add(artist)
+        if album:
+            unique_albums.add((artist, album))
+
+    print(f"  共 {len(unique_artists)} 位歌手, {len(unique_albums)} 个专辑, {len(groups)} 组")
+
     album_songs = []
     singleton_songs = []
     total_dups = 0
     downgraded_albums = 0
+    hash_computed = 0  # 统计实际计算哈希的文件数
 
     group_items = list(groups.items())
     bar = ProgressBar("分组去重", len(group_items), unit="组")
     for i, ((artist, album), songs) in enumerate(group_items):
         if album and len(songs) >= ALBUM_MIN_TRACKS:
             # 专辑歌曲（3首以上）：去重
+            # 先统计哈希计算数（优化前需要计算所有文件，优化后只算大小相同的）
+            import os as _os
+            size_set = set()
+            for s in songs:
+                try:
+                    sz = _os.path.getsize(s['source_path'])
+                except OSError:
+                    sz = 0
+                if sz in size_set:
+                    hash_computed += 1
+                else:
+                    size_set.add(sz)
+
             unique, dups = deduplicate_songs(songs, source_dir)
             album_songs.extend(unique)
             singleton_songs.extend(dups)  # 重复的转为单曲保留
@@ -935,9 +981,12 @@ def organize(source_dir, output_dir, name_map_path,
         bar.update(i + 1)
     bar.finish()
 
+    _t6_elapsed = _time.time() - _t6_start
     print(f"  专辑歌曲: {len(album_songs)} 首")
     print(f"  零散歌曲: {len(singleton_songs)} 首 (含 {downgraded_albums} 个专辑降级)")
     print(f"  去重: {total_dups} 首(转为零散保留)")
+    if hash_computed > 0:
+        print(f"  哈希计算: {hash_computed} 首(仅大小相同的文件)")
 
     # feat. 统计
     feat_count = sum(1 for m in all_meta if m.get('feat'))
