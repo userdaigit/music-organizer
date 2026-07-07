@@ -697,7 +697,9 @@ def organize(source_dir, output_dir, name_map_path,
     total_dups = 0
     downgraded_albums = 0
 
-    for (artist, album), songs in groups.items():
+    group_items = list(groups.items())
+    bar = ProgressBar("分组去重", len(group_items), unit="组")
+    for i, ((artist, album), songs) in enumerate(group_items):
         if album and len(songs) >= ALBUM_MIN_TRACKS:
             # 专辑歌曲（3首以上）：去重
             unique, dups = deduplicate_songs(songs, source_dir)
@@ -710,6 +712,8 @@ def organize(source_dir, output_dir, name_map_path,
             downgraded_albums += 1
         else:
             singleton_songs.extend(songs)
+        bar.update(i + 1)
+    bar.finish()
 
     print(f"  专辑歌曲: {len(album_songs)} 首")
     print(f"  零散歌曲: {len(singleton_songs)} 首 (含 {downgraded_albums} 个专辑降级)")
