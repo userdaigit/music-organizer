@@ -177,6 +177,7 @@ def infer_from_directory(filepath):
     skip_patterns = re.compile(
         r'^(\d+$|CD\d?$|Disc\s?\d+$|music$|music2$|.*\.trae$|tmp$'
         r'|Single$|Singles$|EP$|Albums?$|专辑$|合集$|无损合集$'
+        r'|演唱会$|演唱会专辑$|Live$|Concert$'
         r'|vol\.?\d*$|volume\s*\d*$'
         r'| FLAC$|MP3$|WAV$|APE$'
         r'| BONUS$|Bonus$|EXTRA$|Extra$)',
@@ -779,10 +780,25 @@ def organize(source_dir, output_dir, name_map_path,
 
     # 初始化各模块
     print("[初始化] 加载模块...")
+    # 删除旧的歌手缓存（name_map 更新后需要重新查询）
+    artist_cache_file = config_dir / 'artist_cache.json'
+    if artist_cache_file.exists():
+        try:
+            with open(artist_cache_file, 'r', encoding='utf-8') as f:
+                cached_data = json.load(f)
+            # 检查缓存是否过期（name_map 中有新条目时缓存需要刷新）
+            cached_count = len(cached_data.get('cache', {}))
+            name_map_count = len(name_map)
+            if cached_count > 0 and name_map_count > cached_count:
+                artist_cache_file.unlink()
+                print(f"  歌手缓存已刷新 ({cached_count} -> {name_map_count} 映射)")
+        except Exception:
+            pass
+
     artist_normalizer = ArtistNormalizer(
         name_map=name_map,
         use_network=use_network_artist,
-        cache_file=str(config_dir / 'artist_cache.json'),
+        cache_file=str(artist_cache_file),
     )
 
     scraper = MusicBrainzScraper(

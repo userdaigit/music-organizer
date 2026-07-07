@@ -8,6 +8,7 @@
 
     "陈奕迅": {"display": "陈奕迅-Eason Chan", "nationality": "cn"},
     "Eason Chan": {"display": "陈奕迅-Eason Chan", "nationality": "cn"},
+    "陳奕迅": {"display": "陈奕迅-Eason Chan", "nationality": "cn"},
 
     "林俊杰": {"display": "林俊杰-JJ Lin", "nationality": "cn"},
     "JJ Lin": {"display": "林俊杰-JJ Lin", "nationality": "cn"},
@@ -18,10 +19,13 @@
     "张学友": {"display": "张学友-Jacky Cheung", "nationality": "cn"},
     "Jacky Cheung": {"display": "张学友-Jacky Cheung", "nationality": "cn"},
     "Cheung Hok Yau": {"display": "张学友-Jacky Cheung", "nationality": "cn"},
+    "張學友": {"display": "张学友-Jacky Cheung", "nationality": "cn"},
 
     "刘德华": {"display": "刘德华-Andy Lau", "nationality": "cn"},
     "Andy Lau": {"display": "刘德华-Andy Lau", "nationality": "cn"},
     "Lau Tak Wah": {"display": "刘德华-Andy Lau", "nationality": "cn"},
+    "劉德華": {"display": "刘德华-Andy Lau", "nationality": "cn"},
+    "Lưu Đức Hoa": {"display": "刘德华-Andy Lau", "nationality": "cn"},
 
     "五月天": {"display": "五月天-Mayday", "nationality": "cn"},
     "Mayday": {"display": "五月天-Mayday", "nationality": "cn"},
@@ -117,6 +121,7 @@
 
     "杨千嬅": {"display": "杨千嬅-Miriam Yeung", "nationality": "cn"},
     "杨千桦": {"display": "杨千嬅-Miriam Yeung", "nationality": "cn"},
+    "楊千嬅": {"display": "杨千嬅-Miriam Yeung", "nationality": "cn"},
     "Miriam Yeung": {"display": "杨千嬅-Miriam Yeung", "nationality": "cn"},
 
     "梁咏琪": {"display": "梁咏琪-Gigi Leung", "nationality": "cn"},
@@ -124,6 +129,7 @@
 
     "谢霆锋": {"display": "谢霆锋-Nicholas Tse", "nationality": "cn"},
     "Nicholas Tse": {"display": "谢霆锋-Nicholas Tse", "nationality": "cn"},
+    "謝霆鋒": {"display": "谢霆锋-Nicholas Tse", "nationality": "cn"},
 
     "陈冠希": {"display": "陈冠希-Edison Chen", "nationality": "cn"},
     "Edison Chen": {"display": "陈冠希-Edison Chen", "nationality": "cn"},
@@ -270,6 +276,102 @@
     "Miyuki Nakajima": {"display": "中岛美雪-Miyuki Nakajima", "nationality": "foreign"},
 
     "LP Underground": {"display": "Linkin Park-林肯公园", "nationality": "foreign"},
-    "LP": {"display": "Linkin Park-林肯公园", "nationality": "foreign"}
+    "LP": {"display": "Linkin Park-林肯公园", "nationality": "foreign"},
+    "聯合公園": {"display": "Linkin Park-林肯公园", "nationality": "foreign"},
+
+    "谭咏麟": {"display": "谭咏麟-Alan Tam", "nationality": "cn"},
+    "Alan Tam": {"display": "谭咏麟-Alan Tam", "nationality": "cn"},
+    "譚詠麟": {"display": "谭咏麟-Alan Tam", "nationality": "cn"},
+    "Tan Yong Lin": {"display": "谭咏麟-Alan Tam", "nationality": "cn"},
+    "譚詠麟-Tan Yong Lin": {"display": "谭咏麟-Alan Tam", "nationality": "cn"},
+
+    "李克勤": {"display": "李克勤-Hacken Lee", "nationality": "cn"},
+    "Hacken Lee": {"display": "李克勤-Hacken Lee", "nationality": "cn"},
+    "Lee Hak Kan": {"display": "李克勤-Hacken Lee", "nationality": "cn"},
+    "Li Keqin": {"display": "李克勤-Hacken Lee", "nationality": "cn"},
+    "李克勤-Li Keqin": {"display": "李克勤-Hacken Lee", "nationality": "cn"},
+
+    "林子祥": {"display": "林子祥-George Lam", "nationality": "cn"},
+    "George Lam": {"display": "林子祥-George Lam", "nationality": "cn"},
+    "Lam": {"display": "林子祥-George Lam", "nationality": "cn"},
+    "林子祥-Lam": {"display": "林子祥-George Lam", "nationality": "cn"},
+
+    "温岚": {"display": "温岚-Landy Wen", "nationality": "cn"},
+    "溫嵐": {"display": "温岚-Landy Wen", "nationality": "cn"},
+    "Land Wen": {"display": "温岚-Landy Wen", "nationality": "cn"},
+    "溫嵐-·Å´P": {"display": "温岚-Landy Wen", "nationality": "cn"},
+
+    "无损音乐专辑": {"display": "未知歌手", "nationality": "cn"},
+    "無音": {"display": "未知歌手", "nationality": "cn"},
+    "無音-mune": {"display": "未知歌手", "nationality": "cn"},
+
+    "周杰倫": {"display": "周杰伦-Jay Chou", "nationality": "cn"},
+    "周杰倫-Jay": {"display": "周杰伦-Jay Chou", "nationality": "cn"},
+
+    "梁漢文": {"display": "梁汉文-Edmond Leung", "nationality": "cn"},
+    "梁汉文": {"display": "梁汉文-Edmond Leung", "nationality": "cn"},
+    "Edmond Leung": {"display": "梁汉文-Edmond Leung", "nationality": "cn"},
+
+    "鍾鎮濤": {"display": "钟镇涛-Kenny Bee", "nationality": "cn"},
+    "钟镇涛": {"display": "钟镇涛-Kenny Bee", "nationality": "cn"},
+    "Kenny Bee": {"display": "钟镇涛-Kenny Bee", "nationality": "cn"},
+
+    "南拳媽媽": {"display": "南拳妈妈-Nan Quan Mama", "nationality": "cn"},
+    "南拳妈妈": {"display": "南拳妈妈-Nan Quan Mama", "nationality": "cn"},
+    "Nan Quan Mama": {"display": "南拳妈妈-Nan Quan Mama", "nationality": "cn"},
+
+    "劉畊宏": {"display": "刘畊宏-Will Liu", "nationality": "cn"},
+    "刘畊宏": {"display": "刘畊宏-Will Liu", "nationality": "cn"},
+    "Will Liu": {"display": "刘畊宏-Will Liu", "nationality": "cn"},
+
+    "吳宗憲": {"display": "吴宗宪-Jacky Wu", "nationality": "cn"},
+    "吴宗宪": {"display": "吴宗宪-Jacky Wu", "nationality": "cn"},
+    "Jacky Wu": {"display": "吴宗宪-Jacky Wu", "nationality": "cn"},
+
+    "許慧欣": {"display": "许慧欣-Evonne Hsu", "nationality": "cn"},
+    "许慧欣": {"display": "许慧欣-Evonne Hsu", "nationality": "cn"},
+    "Evonne Hsu": {"display": "许慧欣-Evonne Hsu", "nationality": "cn"},
+
+    "許茹芸": {"display": "许茹芸-Valen Hsu", "nationality": "cn"},
+    "许茹芸": {"display": "许茹芸-Valen Hsu", "nationality": "cn"},
+    "Valen Hsu": {"display": "许茹芸-Valen Hsu", "nationality": "cn"},
+
+    "黃品源": {"display": "黄品源-Huang Pin-yuan", "nationality": "cn"},
+    "黄品源": {"display": "黄品源-Huang Pin-yuan", "nationality": "cn"},
+    "Huang Pin-yuan": {"display": "黄品源-Huang Pin-yuan", "nationality": "cn"},
+
+    "黃俊郎": {"display": "黄俊郎-Huang Jun Lang", "nationality": "cn"},
+    "黄俊郎": {"display": "黄俊郎-Huang Jun Lang", "nationality": "cn"},
+
+    "江語晨": {"display": "江语晨-Jessie Chiang", "nationality": "cn"},
+    "江语晨": {"display": "江语晨-Jessie Chiang", "nationality": "cn"},
+    "Jiang Yuchen": {"display": "江语晨-Jessie Chiang", "nationality": "cn"},
+
+    "莫文蔚": {"display": "莫文蔚-Karen Mok", "nationality": "cn"},
+    "Karen Mok": {"display": "莫文蔚-Karen Mok", "nationality": "cn"},
+    "Mo Wen Wei": {"display": "莫文蔚-Karen Mok", "nationality": "cn"},
+    "莫文蔚-Mo Wen Wei": {"display": "莫文蔚-Karen Mok", "nationality": "cn"},
+
+    "张靓颖": {"display": "张靓颖-Jane Zhang", "nationality": "cn"},
+    "Jane Zhang": {"display": "张靓颖-Jane Zhang", "nationality": "cn"},
+    "Zhang Liangying": {"display": "张靓颖-Jane Zhang", "nationality": "cn"},
+    "张靓颖-Zhang Liangying": {"display": "张靓颖-Jane Zhang", "nationality": "cn"},
+
+    "阿杜": {"display": "阿杜-Ado", "nationality": "cn"},
+    "Toh Sing Gee": {"display": "阿杜-Ado", "nationality": "cn"},
+
+    "朴树": {"display": "朴树-Pu Shu", "nationality": "cn"},
+    "Pu Shu": {"display": "朴树-Pu Shu", "nationality": "cn"},
+
+    "中森明菜": {"display": "中森明菜-Akina Nakamori", "nationality": "foreign"},
+    "中森明菜-Miran:Miran": {"display": "中森明菜-Akina Nakamori", "nationality": "foreign"},
+
+    "姚蘇蓉": {"display": "姚苏蓉-Yao Su-jung", "nationality": "cn"},
+    "姚苏容": {"display": "姚苏蓉-Yao Su-jung", "nationality": "cn"},
+
+    "小苦妹": {"display": "小苦妹-Siu Fu Mui", "nationality": "cn"},
+    "苦榮": {"display": "苦荣-Fu Wing", "nationality": "cn"},
+    "苦荣": {"display": "苦荣-Fu Wing", "nationality": "cn"},
+    "Fu Wing": {"display": "苦荣-Fu Wing", "nationality": "cn"}
   }
 }

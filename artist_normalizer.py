@@ -259,6 +259,29 @@ def build_artist_canonical_name(mb_result, original_name):
 
 
 # ============================================================
+# 合唱歌曲处理
+# ============================================================
+def _extract_primary_artist(artist_name):
+    """
+    从合唱歌手名中提取第一个歌手。
+    "周杰伦.曾志伟.麦烝玮" -> "周杰伦"
+    "张学友,黎明" -> "张学友"
+    "陈奕迅&杨千嬅" -> "陈奕迅"
+    "陈奕迅/张学友" -> "陈奕迅"
+    "Linkin Park" -> "Linkin Park" (无分隔符，原样返回)
+    """
+    if not artist_name:
+        return artist_name
+    # 按各种分隔符分割，取第一段
+    for sep in ['.', '、', ',', '&', '/', ' feat.', ' ft.', ' feat ', ' ft ']:
+        if sep in artist_name:
+            first = artist_name.split(sep)[0].strip()
+            if first:
+                return first
+    return artist_name
+
+
+# ============================================================
 # 歌手名规范化器
 # ============================================================
 class ArtistNormalizer:
@@ -319,36 +342,57 @@ class ArtistNormalizer:
         """
         规范化歌手名。
         优先级：
-          1. 手动映射表
+          1. 手动映射表（先尝试原始名，再尝试取第一个歌手）
           2. 查询缓存
-          3. MusicBrainz 网络查询
+          3. MusicBrainz 网络查询（结果需经过 name_map 二次校验）
           4. 模糊匹配已有名称
           5. 返回原始名
         """
         if not artist_name:
             return '未知歌手'
 
-        # 1. 手动映射表
+        # 1a. 手动映射表（原始名直接匹配）
         if artist_name in self.name_map:
             return self.name_map[artist_name]
+
+        # 1b. 合唱歌曲：取第一个歌手再查 name_map
+        # "周杰伦.曾志伟.麦烝玮" -> "周杰伦" -> name_map -> "周杰伦-Jay Chou"
+        primary = _extract_primary_artist(artist_name)
+        if primary != artist_name and primary in self.name_map:
+            return self.name_map[primary]
 
         # 2. 查询缓存
         if artist_name in self.cache:
             return self.cache[artist_name]
 
+        # 2b. 缓存中也尝试取第一个歌手
+        if primary != artist_name and primary in self.cache:
+            return self.cache[primary]
+
         # 3. MusicBrainz 网络查询
         if self.use_network and artist_name not in self.mb_cache:
             self._rate_limit()
-            mb_result = query_musicbrainz_artist(artist_name)
+            # 查询时用第一个歌手名（更准确）
+            query_name = primary if primary != artist_name else artist_name
+            mb_result = query_musicbrainz_artist(query_name)
             self.mb_cache[artist_name] = mb_result
 
             if mb_result:
-                canonical = build_artist_canonical_name(mb_result, artist_name)
+                canonical = build_artist_canonical_name(mb_result, query_name)
+                # 二次校验：如果 canonical 在 name_map 中有更好的映射，用 name_map
+                if canonical in self.name_map:
+                    canonical = self.name_map[canonical]
+                # 繁简转换后再查一次 name_map
+                from text_utils import normalize_text
+                simplified = normalize_text(canonical)
+                if simplified != canonical and simplified in self.name_map:
+                    canonical = self.name_map[simplified]
+                # 如果是合唱歌曲，用第一个歌手的 canonical
+                if primary != artist_name:
+                    primary_canonical = self.name_map.get(primary, canonical)
+                    canonical = primary_canonical
+
                 self.cache[artist_name] = canonical
-                # 同时缓存所有别名
-                for alias in mb_result.get('aliases', []):
-                    if alias not in self.cache:
-                        self.cache[alias] = canonical
                 self._save_cache()
                 return canonical
 
