@@ -430,8 +430,8 @@ def test_build_target_path_feat_artist():
         'dir_artist': '周杰伦',
     }
     path = build_target_path(meta, is_singleton=False, artist_canonical='周杰伦-Jay Chou')
-    # 目录用专辑歌手，文件名中专辑歌手+实唱歌手
-    assert path == '周杰伦-Jay Chou/2007-不能说的秘密/05-彩虹-周杰伦-Jay Chou-不能说的秘密-江语晨'
+    # 目录用完整格式，文件名中歌手用简化名（中国歌手只中文名）
+    assert path == '周杰伦-Jay Chou/2007-不能说的秘密/05-彩虹-周杰伦-不能说的秘密-江语晨'
 
 
 def test_build_target_path_same_artist_no_feat():
@@ -445,8 +445,22 @@ def test_build_target_path_same_artist_no_feat():
         'dir_artist': '周杰伦',
     }
     path = build_target_path(meta, is_singleton=False, artist_canonical='周杰伦-Jay Chou')
-    # 歌手相同，不追加实唱歌手
-    assert path == '周杰伦-Jay Chou/2001-范特西/01-简单爱-周杰伦-Jay Chou-范特西'
+    # 目录用完整格式，文件名中歌手用简化名，歌手相同不追加实唱歌手
+    assert path == '周杰伦-Jay Chou/2001-范特西/01-简单爱-周杰伦-范特西'
+
+
+def test_build_target_path_foreign_artist():
+    """外国歌手：目录名用原名，文件名中也用原名"""
+    meta = {
+        'title_display': 'Numb',
+        'artist': 'Linkin Park',
+        'album': 'Meteora',
+        'year': '2003',
+        'track': '13',
+    }
+    path = build_target_path(meta, is_singleton=False, artist_canonical='林肯公园-Linkin Park')
+    # 目录用完整格式，文件名中只保留外文原名
+    assert path == '林肯公园-Linkin Park/2003-Meteora/13-Numb-Linkin Park-Meteora'
 
 
 def test_build_target_path_sanitizes_illegal_chars():

@@ -357,9 +357,50 @@ def sanitize(name):
 # 专辑歌曲阈值：少于这个数的"专辑"降级为单曲处理
 ALBUM_MIN_TRACKS = 3
 
+# 外国歌手中文名译名（这些中文是翻译名，不是本名，文件名中应保留外文原名）
+FOREIGN_ARTIST_CN_NAMES = {
+    '林肯公园', '联合公园', '老鹰乐队', '甲壳虫乐队', '披头士',
+    '皇后乐队', '滚石乐队', '酷玩乐队', '绿日乐队', '红辣椒乐队',
+    '后街男孩', '西城男孩', '超级男孩', '邦乔维',
+    '艾薇儿', '碧昂丝', '蕾哈娜', '阿黛尔', '泰勒·斯威夫特', '霉霉',
+    '贾斯汀', '布兰妮', '玛丽亚·凯莉', '席琳·迪翁',
+    '迈克·杰克逊', '迈克尔·杰克逊',
+    '埃米纳姆', '阿姆',
+    '枪花乐队', '枪与玫瑰',
+    '夜愿乐队', '格雷格',
+    '理查德', '理查德·克莱德曼',
+}
+
+
+def _short_artist_name(name):
+    """
+    从"中文名-英文名"格式中提取简化名用于文件名。
+    中国歌手只保留中文名，外国歌手只保留外文原名。
+    如 "周杰伦-Jay Chou" -> "周杰伦"（中国歌手取中文名）
+    如 "林肯公园-Linkin Park" -> "Linkin Park"（外国歌手取外文名）
+    如 "Linkin Park" -> "Linkin Park"（无中文名，直接返回）
+    """
+    if not name:
+        return name
+    if '-' in name:
+        parts = name.split('-', 1)
+        left = parts[0].strip()
+        right = parts[1].strip()
+        # 如果左半部分包含 CJK 字符
+        if any(0x4e00 <= ord(ch) <= 0x9fff for ch in left):
+            # 如果是外国歌手的中文译名，返回外文原名
+            if left in FOREIGN_ARTIST_CN_NAMES:
+                return right
+            # 中国歌手，返回中文名
+            return left
+    return name
+
+
 def build_target_path(meta, is_singleton, artist_canonical):
     """
     根据命名规则构建目标相对路径。
+    目录名: 中文名-英文名（完整格式）
+    文件名歌手: 中国歌手只保留中文名，外国歌手只保留外文原名
     专辑(3首以上): 歌手/年份-专辑/序号-歌曲名-歌手-专辑-实唱歌手.ext
     单曲(含原专辑名): 歌手/其他/序号-歌曲名-歌手-专辑-实唱歌手.ext
     当实唱歌手与专辑歌手相同时，不重复显示。
@@ -374,36 +415,38 @@ def build_target_path(meta, is_singleton, artist_canonical):
     if artist.count('.') + artist.count(',') + artist.count('、') >= 2:
         artist_dir = '群星'
     else:
-        artist_dir = artist_display
+        artist_dir = artist_display  # 目录名保持完整格式
+
+    # 文件名中的歌手用简化名（中国歌手只中文名，外国歌手只外文名）
+    artist_short = _short_artist_name(artist_display)
 
     # 序号前缀
     track_prefix = f"{track}-" if track else ''
 
     # 实唱歌手：当 tag 中的歌手与专辑目录歌手不同时，追加到文件名末尾
-    # 例如：周杰伦专辑中江语晨唱的歌，文件名为 歌名-周杰伦-专辑-江语晨
     feat_artist = ''
     raw_dir_artist = meta.get('dir_artist', '')
     tag_artist = sanitize(meta.get('artist', ''))
     dir_artist = sanitize(raw_dir_artist) if raw_dir_artist else ''
     # 只有 dir_artist 存在且与 tag_artist 不同时才标记为嘉宾歌曲
     if dir_artist and dir_artist != '未知' and tag_artist and tag_artist != dir_artist:
-        feat_artist = tag_artist
+        feat_artist = _short_artist_name(tag_artist)
 
     if is_singleton:
         album_part = '其他'
         # 单曲也带上专辑名（如果有）
         if album:
-            filename = f"{track_prefix}{title}-{artist}-{album}"
+            filename = f"{track_prefix}{title}-{artist_short}-{album}"
         else:
-            filename = f"{track_prefix}{title}-{artist}"
+            filename = f"{track_prefix}{title}-{artist_short}"
     else:
         year = meta.get('year') or '未知'
         album_part = f"{year}-{album or '未知专辑'}"
-        # 专辑歌曲：用专辑歌手（artist_display）作为主歌手
-        filename = f"{track_prefix}{title}-{artist_display}-{album}"
+        # 专辑歌曲：用简化歌手名
+        filename = f"{track_prefix}{title}-{artist_short}-{album}"
 
     # 追加实唱歌手（如果与专辑歌手不同）
-    if feat_artist and feat_artist != artist_display:
+    if feat_artist and feat_artist != artist_short:
         filename += f"-{feat_artist}"
 
     return f"{artist_dir}/{album_part}/{filename}"
