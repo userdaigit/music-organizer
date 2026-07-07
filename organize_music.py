@@ -358,15 +358,41 @@ def sanitize(name):
 ALBUM_MIN_TRACKS = 3
 
 
+# 全局国籍表，由 organize() 加载时填充
+_GLOBAL_NATIONALITIES = {}
+
+
 def _short_artist_name(name):
     """
     从"中文名-英文名"或"外文名-中文译名"格式中提取简化名用于文件名。
     中国歌手(中文名-英文名): 只保留中文名，如 "周杰伦-Jay Chou" -> "周杰伦"
     外国歌手(外文名-中文译名): 只保留外文原名，如 "Linkin Park-林肯公园" -> "Linkin Park"
+    纯英文名中国歌手(如 S.H.E): 保持原样
     无分隔符: 直接返回原名
+    优先使用 _GLOBAL_NATIONALITIES 中的国籍信息。
     """
     if not name:
         return name
+    # 优先使用国籍表
+    nationality = _GLOBAL_NATIONALITIES.get(name)
+    if nationality == 'cn':
+        # 中国歌手：取中文名（如果有）
+        if '-' in name:
+            parts = name.split('-', 1)
+            left = parts[0].strip()
+            if any(0x4e00 <= ord(ch) <= 0x9fff for ch in left):
+                return left
+            # 纯英文名中国歌手(如 S.H.E)，display 可能就是原名
+            return name
+        return name
+    elif nationality == 'foreign':
+        # 外国歌手：取外文原名
+        if '-' in name:
+            parts = name.split('-', 1)
+            left = parts[0].strip()
+            return left
+        return name
+    # 无国籍信息，按格式推断
     if '-' in name:
         parts = name.split('-', 1)
         left = parts[0].strip()
@@ -605,12 +631,32 @@ def organize(source_dir, output_dir, name_map_path,
     print()
 
     # 加载配置
+    # 加载 name_map.json（支持新旧两种格式）
     name_map = {}
+    artist_nationalities = {}  # {display_name: "cn"/"foreign"}
     try:
         with open(name_map_path, 'r', encoding='utf-8') as f:
-            name_map = json.load(f)
+            raw_map = json.load(f)
+
+        if 'artists' in raw_map:
+            # 新格式: {"artists": {"周杰伦": {"display": "周杰伦-Jay Chou", "nationality": "cn"}}}
+            for alias, info in raw_map['artists'].items():
+                display = info.get('display', alias)
+                name_map[alias] = display
+                nationality = info.get('nationality')
+                if nationality:
+                    artist_nationalities[display] = nationality
+        else:
+            # 旧格式: {"周杰伦": "周杰伦-Jay Chou"}（向后兼容）
+            for k, v in raw_map.items():
+                if not k.startswith('_'):
+                    name_map[k] = v
     except (FileNotFoundError, json.JSONDecodeError):
         pass
+
+    # 填充全局国籍表，供 _short_artist_name() 使用
+    global _GLOBAL_NATIONALITIES
+    _GLOBAL_NATIONALITIES = artist_nationalities
 
     config_dir = Path(name_map_path).parent
 

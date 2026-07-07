@@ -1,107 +1,260 @@
 {
-  "_说明": "歌手中英文名映射表。键=原始标签/文件名中的歌手名，值=目标文件夹名（中文名-英文名格式）。未列出的歌手将使用原始名。运行脚本后会生成 artists_found.txt 列出所有发现的歌手，按需补充。",
+  "_说明": "歌手映射表。nationality: cn=中国歌手(中文名-英文名), foreign=外国歌手(外文名-中文译名)。display=目标文件夹显示名。",
+  "_格式": "中国歌手display格式: 中文名-英文名(如 周杰伦-Jay Chou); 外国歌手display格式: 外文名-中文译名(如 Linkin Park-林肯公园); 纯英文名中国歌手: display只有英文名(如 S.H.E)",
 
-  "Jay Chou": "周杰伦-Jay Chou",
-  "周杰伦": "周杰伦-Jay Chou",
+  "artists": {
+    "周杰伦": {"display": "周杰伦-Jay Chou", "nationality": "cn"},
+    "Jay Chou": {"display": "周杰伦-Jay Chou", "nationality": "cn"},
 
-  "Eason Chan": "陈奕迅-Eason Chan",
-  "陈奕迅": "陈奕迅-Eason Chan",
+    "陈奕迅": {"display": "陈奕迅-Eason Chan", "nationality": "cn"},
+    "Eason Chan": {"display": "陈奕迅-Eason Chan", "nationality": "cn"},
 
-  "JJ Lin": "林俊杰-JJ Lin",
-  "林俊杰": "林俊杰-JJ Lin",
+    "林俊杰": {"display": "林俊杰-JJ Lin", "nationality": "cn"},
+    "JJ Lin": {"display": "林俊杰-JJ Lin", "nationality": "cn"},
 
-  "Faye Wong": "王菲-Faye Wong",
-  "王菲": "王菲-Faye Wong",
+    "王菲": {"display": "王菲-Faye Wong", "nationality": "cn"},
+    "Faye Wong": {"display": "王菲-Faye Wong", "nationality": "cn"},
 
-  "Jacky Cheung": "张学友-Jacky Cheung",
-  "张学友": "张学友-Jacky Cheung",
+    "张学友": {"display": "张学友-Jacky Cheung", "nationality": "cn"},
+    "Jacky Cheung": {"display": "张学友-Jacky Cheung", "nationality": "cn"},
 
-  "Andy Lau": "刘德华-Andy Lau",
-  "刘德华": "刘德华-Andy Lau",
+    "刘德华": {"display": "刘德华-Andy Lau", "nationality": "cn"},
+    "Andy Lau": {"display": "刘德华-Andy Lau", "nationality": "cn"},
 
-  "Mayday": "五月天-Mayday",
-  "五月天": "五月天-Mayday",
+    "五月天": {"display": "五月天-Mayday", "nationality": "cn"},
+    "Mayday": {"display": "五月天-Mayday", "nationality": "cn"},
 
-  "Stefanie Sun": "孙燕姿-Stefanie Sun",
-  "孙燕姿": "孙燕姿-Stefanie Sun",
+    "孙燕姿": {"display": "孙燕姿-Stefanie Sun", "nationality": "cn"},
+    "Stefanie Sun": {"display": "孙燕姿-Stefanie Sun", "nationality": "cn"},
 
-  "Fish Leong": "梁静茹-Fish Leong",
-  "梁静茹": "梁静茹-Fish Leong",
+    "梁静茹": {"display": "梁静茹-Fish Leong", "nationality": "cn"},
+    "Fish Leong": {"display": "梁静茹-Fish Leong", "nationality": "cn"},
 
-  "G.E.M.": "邓紫棋-G.E.M.",
-  "邓紫棋": "邓紫棋-G.E.M.",
+    "邓紫棋": {"display": "邓紫棋-G.E.M.", "nationality": "cn"},
+    "G.E.M.": {"display": "邓紫棋-G.E.M.", "nationality": "cn"},
 
-  "Li Ronghao": "李荣浩-Li Ronghao",
-  "李荣浩": "李荣浩-Li Ronghao",
+    "李荣浩": {"display": "李荣浩-Li Ronghao", "nationality": "cn"},
+    "Li Ronghao": {"display": "李荣浩-Li Ronghao", "nationality": "cn"},
 
-  "Joker Xue": "薛之谦-Joker Xue",
-  "薛之谦": "薛之谦-Joker Xue",
+    "薛之谦": {"display": "薛之谦-Joker Xue", "nationality": "cn"},
+    "Joker Xue": {"display": "薛之谦-Joker Xue", "nationality": "cn"},
 
-  "Mao Buyi": "毛不易-Mao Buyi",
-  "毛不易": "毛不易-Mao Buyi",
+    "毛不易": {"display": "毛不易-Mao Buyi", "nationality": "cn"},
+    "Mao Buyi": {"display": "毛不易-Mao Buyi", "nationality": "cn"},
 
-  "Hua Chenyu": "华晨宇-Hua Chenyu",
-  "华晨宇": "华晨宇-Hua Chenyu",
+    "华晨宇": {"display": "华晨宇-Hua Chenyu", "nationality": "cn"},
+    "Hua Chenyu": {"display": "华晨宇-Hua Chenyu", "nationality": "cn"},
 
-  "Leslie Cheung": "张国荣-Leslie Cheung",
-  "张国荣": "张国荣-Leslie Cheung",
+    "张国荣": {"display": "张国荣-Leslie Cheung", "nationality": "cn"},
+    "Leslie Cheung": {"display": "张国荣-Leslie Cheung", "nationality": "cn"},
 
-  "Teresa Teng": "邓丽君-Teresa Teng",
-  "邓丽君": "邓丽君-Teresa Teng",
+    "邓丽君": {"display": "邓丽君-Teresa Teng", "nationality": "cn"},
+    "Teresa Teng": {"display": "邓丽君-Teresa Teng", "nationality": "cn"},
 
-  "Jonathan Lee": "李宗盛-Jonathan Lee",
-  "李宗盛": "李宗盛-Jonathan Lee",
+    "李宗盛": {"display": "李宗盛-Jonathan Lee", "nationality": "cn"},
+    "Jonathan Lee": {"display": "李宗盛-Jonathan Lee", "nationality": "cn"},
 
-  "Wakin Chau": "周华健-Wakin Chau",
-  "周华健": "周华健-Wakin Chau",
+    "周华健": {"display": "周华健-Wakin Chau", "nationality": "cn"},
+    "Wakin Chau": {"display": "周华健-Wakin Chau", "nationality": "cn"},
 
-  "A-Mei": "张惠妹-A-Mei",
-  "张惠妹": "张惠妹-A-Mei",
+    "张惠妹": {"display": "张惠妹-A-Mei", "nationality": "cn"},
+    "A-Mei": {"display": "张惠妹-A-Mei", "nationality": "cn"},
+    "aMEI": {"display": "张惠妹-A-Mei", "nationality": "cn"},
 
-  "Jolin Tsai": "蔡依林-Jolin Tsai",
-  "蔡依林": "蔡依林-Jolin Tsai",
+    "蔡依林": {"display": "蔡依林-Jolin Tsai", "nationality": "cn"},
+    "Jolin Tsai": {"display": "蔡依林-Jolin Tsai", "nationality": "cn"},
 
-  "Jam Hsiao": "萧敬腾-Jam Hsiao",
-  "萧敬腾": "萧敬腾-Jam Hsiao",
+    "萧敬腾": {"display": "萧敬腾-Jam Hsiao", "nationality": "cn"},
+    "Jam Hsiao": {"display": "萧敬腾-Jam Hsiao", "nationality": "cn"},
 
-  "Leehom Wang": "王力宏-Leehom Wang",
-  "王力宏": "王力宏-Leehom Wang",
+    "王力宏": {"display": "王力宏-Leehom Wang", "nationality": "cn"},
+    "Leehom Wang": {"display": "王力宏-Leehom Wang", "nationality": "cn"},
 
-  "David Tao": "陶喆-David Tao",
-  "陶喆": "陶喆-David Tao",
+    "陶喆": {"display": "陶喆-David Tao", "nationality": "cn"},
+    "David Tao": {"display": "陶喆-David Tao", "nationality": "cn"},
 
-  "Wilber Pan": "潘玮柏-Wilber Pan",
-  "潘玮柏": "潘玮柏-Wilber Pan",
+    "潘玮柏": {"display": "潘玮柏-Wilber Pan", "nationality": "cn"},
+    "Wilber Pan": {"display": "潘玮柏-Wilber Pan", "nationality": "cn"},
 
-  "Show Lo": "罗志祥-Show Lo",
-  "罗志祥": "罗志祥-Show Lo",
+    "罗志祥": {"display": "罗志祥-Show Lo", "nationality": "cn"},
+    "Show Lo": {"display": "罗志祥-Show Lo", "nationality": "cn"},
 
-  "Linkin Park": "Linkin Park-林肯公园",
-  "林肯公园": "Linkin Park-林肯公园",
-  "联合公园": "Linkin Park-林肯公园",
+    "陈小春": {"display": "陈小春-Jordan Chan", "nationality": "cn"},
+    "Jordan Chan": {"display": "陈小春-Jordan Chan", "nationality": "cn"},
 
-  "Jordan Chan": "陈小春-Jordan Chan",
-  "陈小春": "陈小春-Jordan Chan",
+    "动力火车": {"display": "动力火车-Power Station", "nationality": "cn"},
+    "Power Station": {"display": "动力火车-Power Station", "nationality": "cn"},
 
-  "Power Station": "动力火车-Power Station",
-  "动力火车": "动力火车-Power Station",
+    "古巨基": {"display": "古巨基-Leo Ku", "nationality": "cn"},
+    "Leo Ku": {"display": "古巨基-Leo Ku", "nationality": "cn"},
 
-  "Leo Ku": "古巨基-Leo Ku",
-  "古巨基": "古巨基-Leo Ku",
+    "郭富城": {"display": "郭富城-Aaron Kwok", "nationality": "cn"},
+    "Aaron Kwok": {"display": "郭富城-Aaron Kwok", "nationality": "cn"},
 
-  "Aaron Kwok": "郭富城-Aaron Kwok",
-  "郭富城": "郭富城-Aaron Kwok",
+    "李克勤": {"display": "李克勤-Hacken Lee", "nationality": "cn"},
+    "Hacken Lee": {"display": "李克勤-Hacken Lee", "nationality": "cn"},
 
-  "Hacken Lee": "李克勤-Hacken Lee",
-  "李克勤": "李克勤-Hacken Lee",
+    "叶倩文": {"display": "叶倩文-Sally Yeh", "nationality": "cn"},
+    "Sally Yeh": {"display": "叶倩文-Sally Yeh", "nationality": "cn"},
+    "葉倩文": {"display": "叶倩文-Sally Yeh", "nationality": "cn"},
 
-  "Jacky Cheung": "张学友-Jacky Cheung",
-  "张学友": "张学友-Jacky Cheung",
+    "陈慧琳": {"display": "陈慧琳-Kelly Chen", "nationality": "cn"},
+    "Kelly Chen": {"display": "陈慧琳-Kelly Chen", "nationality": "cn"},
 
-  "Andy Lau": "刘德华-Andy Lau",
-  "刘德华": "刘德华-Andy Lau",
+    "张韶涵": {"display": "张韶涵-Angela Zhang", "nationality": "cn"},
+    "Angela Zhang": {"display": "张韶涵-Angela Zhang", "nationality": "cn"},
+    "Angela": {"display": "张韶涵-Angela Zhang", "nationality": "cn"},
 
-  "Sally Yeh": "叶倩文-Sally Yeh",
-  "叶倩文": "叶倩文-Sally Yeh",
-  "葉倩文": "叶倩文-Sally Yeh"
+    "刘若英": {"display": "刘若英-Rene Liu", "nationality": "cn"},
+    "Rene Liu": {"display": "刘若英-Rene Liu", "nationality": "cn"},
+
+    "杨千嬅": {"display": "杨千嬅-Miriam Yeung", "nationality": "cn"},
+    "杨千桦": {"display": "杨千嬅-Miriam Yeung", "nationality": "cn"},
+    "Miriam Yeung": {"display": "杨千嬅-Miriam Yeung", "nationality": "cn"},
+
+    "梁咏琪": {"display": "梁咏琪-Gigi Leung", "nationality": "cn"},
+    "Gigi Leung": {"display": "梁咏琪-Gigi Leung", "nationality": "cn"},
+
+    "谢霆锋": {"display": "谢霆锋-Nicholas Tse", "nationality": "cn"},
+    "Nicholas Tse": {"display": "谢霆锋-Nicholas Tse", "nationality": "cn"},
+
+    "陈冠希": {"display": "陈冠希-Edison Chen", "nationality": "cn"},
+    "Edison Chen": {"display": "陈冠希-Edison Chen", "nationality": "cn"},
+
+    "周慧敏": {"display": "周慧敏-Vivian Chow", "nationality": "cn"},
+    "Vivian Chow": {"display": "周慧敏-Vivian Chow", "nationality": "cn"},
+
+    "张靓颖": {"display": "张靓颖-Jane Zhang", "nationality": "cn"},
+    "Jane Zhang": {"display": "张靓颖-Jane Zhang", "nationality": "cn"},
+
+    "李宇春": {"display": "李宇春-Chris Lee", "nationality": "cn"},
+    "Chris Lee": {"display": "李宇春-Chris Lee", "nationality": "cn"},
+
+    "周笔畅": {"display": "周笔畅-Bibi Zhou", "nationality": "cn"},
+    "Bibi Zhou": {"display": "周笔畅-Bibi Zhou", "nationality": "cn"},
+    "BiBi Zhou": {"display": "周笔畅-Bibi Zhou", "nationality": "cn"},
+
+    "张杰": {"display": "张杰-Jason Zhang", "nationality": "cn"},
+    "Jason Zhang": {"display": "张杰-Jason Zhang", "nationality": "cn"},
+
+    "林宥嘉": {"display": "林宥嘉-Yoga Lin", "nationality": "cn"},
+    "Yoga Lin": {"display": "林宥嘉-Yoga Lin", "nationality": "cn"},
+
+    "徐佳莹": {"display": "徐佳莹-Lala Hsu", "nationality": "cn"},
+    "Lala Hsu": {"display": "徐佳莹-Lala Hsu", "nationality": "cn"},
+
+    "苏打绿": {"display": "苏打绿-Sodagreen", "nationality": "cn"},
+    "Sodagreen": {"display": "苏打绿-Sodagreen", "nationality": "cn"},
+
+    "飞儿乐团": {"display": "飞儿乐团-F.I.R.", "nationality": "cn"},
+    "F.I.R.": {"display": "飞儿乐团-F.I.R.", "nationality": "cn"},
+    "FIR": {"display": "飞儿乐团-F.I.R.", "nationality": "cn"},
+
+    "S.H.E": {"display": "S.H.E", "nationality": "cn"},
+    "SHE": {"display": "S.H.E", "nationality": "cn"},
+    "s.h.e": {"display": "S.H.E", "nationality": "cn"},
+
+    "飞轮海": {"display": "飞轮海-Fahrenheit", "nationality": "cn"},
+    "Fahrenheit": {"display": "飞轮海-Fahrenheit", "nationality": "cn"},
+
+    "Twins": {"display": "Twins", "nationality": "cn"},
+    "twins": {"display": "Twins", "nationality": "cn"},
+
+    "Beyond": {"display": "Beyond", "nationality": "cn"},
+    "BEYOND": {"display": "Beyond", "nationality": "cn"},
+
+    "小虎队": {"display": "小虎队-Little Tigers", "nationality": "cn"},
+    "Little Tigers": {"display": "小虎队-Little Tigers", "nationality": "cn"},
+
+    "羽泉": {"display": "羽泉-Yu Quan", "nationality": "cn"},
+    "Yu Quan": {"display": "羽泉-Yu Quan", "nationality": "cn"},
+
+    "信乐团": {"display": "信乐团-Shin Band", "nationality": "cn"},
+    "Shin": {"display": "信乐团-Shin Band", "nationality": "cn"},
+
+    "草蜢": {"display": "草蜢-Grasshopper", "nationality": "cn"},
+    "Grasshopper": {"display": "草蜢-Grasshopper", "nationality": "cn"},
+
+    "陈绮贞": {"display": "陈绮贞-Cheer Chen", "nationality": "cn"},
+    "Cheer Chen": {"display": "陈绮贞-Cheer Chen", "nationality": "cn"},
+
+    "方大同": {"display": "方大同-Khalil Fong", "nationality": "cn"},
+    "Khalil Fong": {"display": "方大同-Khalil Fong", "nationality": "cn"},
+
+    "王心凌": {"display": "王心凌-Cyndi Wang", "nationality": "cn"},
+    "Cyndi Wang": {"display": "王心凌-Cyndi Wang", "nationality": "cn"},
+
+    "张信哲": {"display": "张信哲-Jeff Chang", "nationality": "cn"},
+    "Jeff Chang": {"display": "张信哲-Jeff Chang", "nationality": "cn"},
+
+    "任贤齐": {"display": "任贤齐-Richie Jen", "nationality": "cn"},
+    "Richie Jen": {"display": "任贤齐-Richie Jen", "nationality": "cn"},
+
+    "光良": {"display": "光良-Michael Wong", "nationality": "cn"},
+    "Michael Wong": {"display": "光良-Michael Wong", "nationality": "cn"},
+
+    "品冠": {"display": "品冠-Victor Wong", "nationality": "cn"},
+    "Victor Wong": {"display": "品冠-Victor Wong", "nationality": "cn"},
+
+    "曹格": {"display": "曹格-Gary Chaw", "nationality": "cn"},
+    "Gary Chaw": {"display": "曹格-Gary Chaw", "nationality": "cn"},
+
+    "林忆莲": {"display": "林忆莲-Sandy Lam", "nationality": "cn"},
+    "Sandy Lam": {"display": "林忆莲-Sandy Lam", "nationality": "cn"},
+
+    "郑秀文": {"display": "郑秀文-Sammi Cheng", "nationality": "cn"},
+    "Sammi Cheng": {"display": "郑秀文-Sammi Cheng", "nationality": "cn"},
+
+    "容祖儿": {"display": "容祖儿-Joey Yung", "nationality": "cn"},
+    "Joey Yung": {"display": "容祖儿-Joey Yung", "nationality": "cn"},
+
+    "谢安琪": {"display": "谢安琪-Kay Tse", "nationality": "cn"},
+    "Kay Tse": {"display": "谢安琪-Kay Tse", "nationality": "cn"},
+
+    "吴青峰": {"display": "吴青峰-Qing Feng Wu", "nationality": "cn"},
+    "Qing Feng Wu": {"display": "吴青峰-Qing Feng Wu", "nationality": "cn"},
+
+    "Linkin Park": {"display": "Linkin Park-林肯公园", "nationality": "foreign"},
+    "林肯公园": {"display": "Linkin Park-林肯公园", "nationality": "foreign"},
+    "联合公园": {"display": "Linkin Park-林肯公园", "nationality": "foreign"},
+
+    "Coldplay": {"display": "Coldplay-酷玩乐队", "nationality": "foreign"},
+    "酷玩乐队": {"display": "Coldplay-酷玩乐队", "nationality": "foreign"},
+
+    "Maroon 5": {"display": "Maroon 5-魔力红", "nationality": "foreign"},
+    "魔力红": {"display": "Maroon 5-魔力红", "nationality": "foreign"},
+
+    "Adele": {"display": "Adele-阿黛尔", "nationality": "foreign"},
+    "阿黛尔": {"display": "Adele-阿黛尔", "nationality": "foreign"},
+
+    "Avril Lavigne": {"display": "Avril Lavigne-艾薇儿", "nationality": "foreign"},
+    "艾薇儿": {"display": "Avril Lavigne-艾薇儿", "nationality": "foreign"},
+
+    "Taylor Swift": {"display": "Taylor Swift-泰勒·斯威夫特", "nationality": "foreign"},
+    "泰勒·斯威夫特": {"display": "Taylor Swift-泰勒·斯威夫特", "nationality": "foreign"},
+    "霉霉": {"display": "Taylor Swift-泰勒·斯威夫特", "nationality": "foreign"},
+
+    "Eminem": {"display": "Eminem-埃米纳姆", "nationality": "foreign"},
+    "埃米纳姆": {"display": "Eminem-埃米纳姆", "nationality": "foreign"},
+
+    "Michael Jackson": {"display": "Michael Jackson-迈克尔·杰克逊", "nationality": "foreign"},
+    "迈克尔·杰克逊": {"display": "Michael Jackson-迈克尔·杰克逊", "nationality": "foreign"},
+    "迈克·杰克逊": {"display": "Michael Jackson-迈克尔·杰克逊", "nationality": "foreign"},
+
+    "The Beatles": {"display": "The Beatles-披头士", "nationality": "foreign"},
+    "披头士": {"display": "The Beatles-披头士", "nationality": "foreign"},
+    "甲壳虫乐队": {"display": "The Beatles-披头士", "nationality": "foreign"},
+
+    "Queen": {"display": "Queen-皇后乐队", "nationality": "foreign"},
+    "皇后乐队": {"display": "Queen-皇后乐队", "nationality": "foreign"},
+
+    "Eagles": {"display": "Eagles-老鹰乐队", "nationality": "foreign"},
+    "老鹰乐队": {"display": "Eagles-老鹰乐队", "nationality": "foreign"},
+
+    "Backstreet Boys": {"display": "Backstreet Boys-后街男孩", "nationality": "foreign"},
+    "后街男孩": {"display": "Backstreet Boys-后街男孩", "nationality": "foreign"},
+
+    "Westlife": {"display": "Westlife-西城男孩", "nationality": "foreign"},
+    "西城男孩": {"display": "Westlife-西城男孩", "nationality": "foreign"}
+  }
 }
