@@ -34,6 +34,8 @@ import json
 import shutil
 import argparse
 import hashlib
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
 from pathlib import Path
 from collections import defaultdict
 from datetime import datetime
@@ -762,6 +764,23 @@ def scan_audio_files(source_dir):
 
 
 # ============================================================
+# 并行刮削辅助函数
+# ============================================================
+def _scrape_one_source(scraper_obj, source_name, meta):
+    """
+    用单个刮削器处理一首歌，返回 (enriched_meta, changed)。
+    每个刮削器内部有自己的限流，互不干扰。
+    """
+    try:
+        if source_name == 'musicbrainz':
+            return scraper_obj.enrich_metadata(meta, use_fingerprint=None)
+        else:
+            return scraper_obj.enrich_metadata(meta)
+    except Exception:
+        return meta, False
+
+
+# ============================================================
 # 主整理逻辑
 # ============================================================
 def organize(source_dir, output_dir, name_map_path,
@@ -1036,10 +1055,10 @@ def organize(source_dir, output_dir, name_map_path,
                     meta['artist_original'] = meta.get('artist_original', meta['artist'])
                     meta['artist'] = artist_mapping[meta['artist']]
 
-    # 4. 多刮削源补全（网易云 → MusicBrainz → 酷狗音乐）
+    # 4. 多刮削源并行补全（网易云 / MusicBrainz / 酷狗 同时请求）
     if use_scrape:
         print()
-        print("[4/8] 网络刮削补全元数据（网易云 → MusicBrainz → 酷狗音乐）...")
+        print("[4/8] 网络刮削补全元数据（3源并行）...")
         scraped_mb_count = 0
         scraped_kugou_count = 0
         scraped_netease_count = 0
@@ -1047,61 +1066,68 @@ def organize(source_dir, output_dir, name_map_path,
                              if (not m.get('album') or not m.get('year'))
                              and m['artist'] != '未知歌手']
 
-        # 4a. 网易云音乐刮削（优先级最高，华语歌曲覆盖率高）
-        if netease_scraper and need_scrape_items:
-            bar = ProgressBar("网易云音乐  ", len(need_scrape_items), unit="首")
-            remaining_items = []
-            for j, (i, meta) in enumerate(need_scrape_items):
-                try:
-                    enriched, changed = netease_scraper.enrich_metadata(meta)
-                    if changed:
-                        all_meta[i] = enriched
-                        scraped_netease_count += 1
-                    else:
-                        remaining_items.append((i, all_meta[i]))
-                except Exception:
-                    remaining_items.append((i, all_meta[i]))
-                bar.update(j + 1)
-            bar.finish()
-            print(f"  网易云音乐补全: {scraped_netease_count} 首")
-        else:
-            remaining_items = need_scrape_items
+        if need_scrape_items:
+            # 构建可用刮削器列表
+            available_scrapers = {}
+            if netease_scraper:
+                available_scrapers['netease'] = netease_scraper
+            if scraper:
+                available_scrapers['musicbrainz'] = scraper
+            if kugou_scraper and kugou_scraper.is_available():
+                available_scrapers['kugou'] = kugou_scraper
 
-        # 4b. MusicBrainz 刮削（对网易云未补全的歌曲）
-        if scraper and remaining_items:
-            bar = ProgressBar("MusicBrainz", len(remaining_items), unit="首")
-            still_remaining = []
-            for j, (i, meta) in enumerate(remaining_items):
-                enriched, changed = scraper.enrich_metadata(
-                    meta,
-                    use_fingerprint=None
-                )
-                if changed:
-                    all_meta[i] = enriched
-                    scraped_mb_count += 1
-                else:
-                    still_remaining.append((i, all_meta[i]))
-                bar.update(j + 1)
-            bar.finish()
-            print(f"  MusicBrainz 补全: {scraped_mb_count} 首")
-            remaining_items = still_remaining
+            if available_scrapers:
+                # 并行处理：每首歌同时请求所有可用的刮削器
+                BATCH_SIZE = 5  # 每批处理5首歌，每首歌内部3个刮削器并行
+                bar = ProgressBar("刮削补全  ", len(need_scrape_items), unit="首")
+                processed = 0
 
-        # 4c. 酷狗音乐刮削（对前面未补全的歌曲）
-        if kugou_scraper and kugou_scraper.is_available() and remaining_items:
-            bar = ProgressBar("酷狗音乐  ", len(remaining_items), unit="首")
-            for j, (i, meta) in enumerate(remaining_items):
-                enriched, changed = kugou_scraper.enrich_metadata(meta)
-                if changed:
-                    all_meta[i] = enriched
-                    scraped_kugou_count += 1
-                bar.update(j + 1)
-            bar.finish()
-            print(f"  酷狗音乐补全: {scraped_kugou_count} 首")
+                for batch_start in range(0, len(need_scrape_items), BATCH_SIZE):
+                    batch = need_scrape_items[batch_start:batch_start + BATCH_SIZE]
+
+                    with ThreadPoolExecutor(max_workers=len(batch) * len(available_scrapers)) as pool:
+                        # 提交所有任务：每首歌 × 每个刮削器
+                        futures = {}  # future -> (song_idx, scraper_name)
+                        for song_idx, (orig_i, meta) in enumerate(batch):
+                            for name, scraper_obj in available_scrapers.items():
+                                future = pool.submit(
+                                    _scrape_one_source, scraper_obj, name, dict(meta)
+                                )
+                                futures[future] = (song_idx, orig_i, name)
+
+                        # 收集结果（按歌曲分组，每首歌取第一个返回的结果）
+                        song_results = {}  # song_idx -> best_result
+                        for future in as_completed(futures, timeout=60):
+                            song_idx, orig_i, src_name = futures[future]
+                            try:
+                                enriched, changed = future.result()
+                                if changed and song_idx not in song_results:
+                                    # 第一个返回有效结果的刮削器获胜
+                                    song_results[song_idx] = (orig_i, enriched, src_name)
+                            except Exception:
+                                pass
+
+                    # 应用结果
+                    for song_idx, (orig_i, enriched, src_name) in song_results.items():
+                        all_meta[orig_i] = enriched
+                        if src_name == 'netease':
+                            scraped_netease_count += 1
+                        elif src_name == 'musicbrainz':
+                            scraped_mb_count += 1
+                        elif src_name == 'kugou':
+                            scraped_kugou_count += 1
+
+                    processed += len(batch)
+                    bar.update(processed)
+
+                bar.finish()
+                print(f"  网易云音乐补全: {scraped_netease_count} 首")
+                print(f"  MusicBrainz 补全: {scraped_mb_count} 首")
+                print(f"  酷狗音乐补全: {scraped_kugou_count} 首")
+            else:
+                print(f"  刮削: 无可用刮削器")
         else:
-            if not kugou_scraper:
-                print(f"  酷狗音乐: 跳过(未启用)")
-            elif not kugou_scraper.is_available():
-                print(f"  酷狗音乐: 接口不可用")
+            print(f"  刮削: 无需补全（所有歌曲已有完整信息）")
 
         total_scraped = scraped_mb_count + scraped_kugou_count + scraped_netease_count
         print(f"  刮削总计: {total_scraped} 首")
