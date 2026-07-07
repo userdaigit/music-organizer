@@ -38,7 +38,7 @@ fi
 
 # 检查并安装依赖
 echo "[检查依赖]"
-pip3 install mutagen pyacoustid 2>/dev/null || true
+pip3 install -r "$CONFIG_DIR/requirements.txt" 2>/dev/null || true
 
 # 检查 chromaprint（音频指纹功能依赖）
 if ! command -v fpcalc &> /dev/null; then

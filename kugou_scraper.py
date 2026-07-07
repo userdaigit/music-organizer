@@ -87,10 +87,12 @@ class KugouScraper:
             results = []
             if data.get('status') == 1 and data.get('data', {}).get('info'):
                 for item in data['data']['info']:
+                    # 注意：酷狗API字段名是 album_name（有下划线），不是 albumname
+                    album = item.get('album_name', '') or item.get('albumname', '') or ''
                     song = {
                         'title': item.get('songname', '').strip(),
                         'artist': item.get('singername', '').strip(),
-                        'album': item.get('albumname', '').strip(),
+                        'album': album.strip(),
                         'duration': int(item.get('duration', 0)),
                         'release_date': '',  # 酷狗搜索接口不直接返回发行日期
                     }

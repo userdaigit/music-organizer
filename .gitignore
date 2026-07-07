@@ -46,3 +46,9 @@ artist_variants.json
 
 # Docker
 docker-compose.override.yml
+
+# Spec Kit 开发文档（运行时不需要）
+.specify/
+
+# pytest 缓存
+.pytest_cache/

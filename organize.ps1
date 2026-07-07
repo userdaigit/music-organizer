@@ -101,11 +101,9 @@ if ($LASTEXITCODE -eq 0) {
     $mutagenOk = $true
 }
 if (-not $mutagenOk) {
-    Write-Host "[错误] 未安装 Python 依赖 mutagen（音频标签读写必需）。" -ForegroundColor Red
+    Write-Host "[错误] 未安装 Python 依赖（音频标签读写必需）。" -ForegroundColor Red
     Write-Host "  请执行以下命令安装依赖:"
     Write-Host "    pip install -r requirements.txt"
-    Write-Host "  或单独安装核心依赖:"
-    Write-Host "    pip install mutagen pyacoustid"
     exit 1
 }
 Write-Host "[环境检查] mutagen: 已安装" -ForegroundColor Green

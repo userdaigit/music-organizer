@@ -86,14 +86,27 @@ class NetEaseScraper:
             return []
 
         songs = result['result'].get('songs', [])
-        return [{
-            'name': s.get('name', ''),
-            'artist': s['artists'][0]['name'] if s.get('artists') else '',
-            'artist_id': s['artists'][0]['id'] if s.get('artists') else 0,
-            'album': s['album']['name'] if s.get('album') else '',
-            'album_id': s['album']['id'] if s.get('album') else 0,
-            'duration': s.get('dt', 0) // 1000,  # 转为秒
-        } for s in songs]
+        results = []
+        for s in songs:
+            album = s.get('album') or {}
+            # publishTime 是毫秒时间戳，转换为年份
+            year = ''
+            pt = album.get('publishTime', 0)
+            if pt:
+                try:
+                    year = str(time.localtime(pt / 1000).tm_year)
+                except Exception:
+                    pass
+            results.append({
+                'name': s.get('name', ''),
+                'artist': s['artists'][0]['name'] if s.get('artists') else '',
+                'artist_id': s['artists'][0]['id'] if s.get('artists') else 0,
+                'album': album.get('name', ''),
+                'album_id': album.get('id', 0),
+                'year': year,
+                'duration': s.get('dt', 0) // 1000,  # 转为秒
+            })
+        return results
 
     def search_artist(self, keyword, limit=5):
         """
@@ -245,12 +258,9 @@ class NetEaseScraper:
             enrichment['artist'] = best_match['artist']
         if best_match.get('duration') and not meta.get('duration'):
             enrichment['duration'] = best_match['duration']
-
-        # 如果有专辑ID，尝试获取专辑年份
-        if best_match.get('album_id') and not meta.get('year'):
-            year = self._get_album_year(best_match['album_id'])
-            if year:
-                enrichment['year'] = year
+        # 从搜索结果中直接提取年份（publishTime 毫秒时间戳）
+        if best_match.get('year') and not meta.get('year'):
+            enrichment['year'] = best_match['year']
 
         if enrichment:
             self.cache[cache_key] = enrichment

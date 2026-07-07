@@ -226,15 +226,10 @@ class FingerprintIdentifier:
         if is_default_key(self.api_key):
             self._key_status = "default"
         else:
-            # 非默认 KEY，尝试验证
-            valid = validate_api_key(self.api_key)
-            if valid is True:
-                self._key_status = True
-            elif valid is False:
-                self._key_status = False
-            else:
-                # 网络错误，假设有效（后续请求失败会自然降级）
-                self._key_status = True
+            # 非默认 KEY，假设有效（实际验证在首次识别时发生）
+            # AcoustID API 没有专门的 KEY 验证端点，/lookup 需要有效指纹
+            # 发送空指纹会返回 400 Bad Request，不是有效的验证方式
+            self._key_status = True
 
     def identify(self, filepath):
         """识别文件，带缓存"""

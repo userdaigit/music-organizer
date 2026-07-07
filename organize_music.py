@@ -68,6 +68,44 @@ TRACK_PREFIX_PATTERN = re.compile(r'^(\d{1,3})\s*[-_.\s]+\s*')
 
 
 # ============================================================
+# 年份提取
+# ============================================================
+# 匹配目录名/文件名中的年份模式
+YEAR_PATTERN = re.compile(
+    r'(?:^|\D)('  # 年份前不能是数字（避免匹配到更大的数字）
+    r'(?:19|20)\d{2}'  # 1900-2099 年份
+    r')(?:\D|$)'  # 年份后不能是数字
+)
+# 匹配方括号/圆括号中的年份: [1999], (1999), 【1999】
+YEAR_BRACKET_PATTERN = re.compile(r'[\[【\(（]\s*((?:19|20)\d{2})\s*[\]】\)）]')
+# 匹配开头的年份前缀: "1999 - ", "2010.", "1999_"
+YEAR_PREFIX_PATTERN = re.compile(r'^((?:19|20)\d{2})\s*[-.\s_]+\s*')
+
+
+def _extract_year_from_string(text):
+    """
+    从字符串中提取年份。
+    优先匹配方括号/圆括号中的年份，其次是开头年份前缀，最后是任意位置。
+    返回年份字符串或空字符串。
+    """
+    if not text:
+        return ''
+    # 优先：方括号/圆括号中的年份
+    m = YEAR_BRACKET_PATTERN.search(text)
+    if m:
+        return m.group(1)
+    # 次优先：开头年份前缀
+    m = YEAR_PREFIX_PATTERN.match(text)
+    if m:
+        return m.group(1)
+    # 兜底：字符串中任意位置
+    m = YEAR_PATTERN.search(text)
+    if m:
+        return m.group(1)
+    return ''
+
+
+# ============================================================
 # feat. 识别
 # ============================================================
 def parse_feat(text):
@@ -165,6 +203,11 @@ def parse_filename(filepath):
         if key in result:
             result[key] = normalize_text(result[key])
 
+    # 从文件名中提取年份
+    year = _extract_year_from_string(stem)
+    if year:
+        result['year'] = year
+
     return result
 
 
@@ -198,10 +241,25 @@ def infer_from_directory(filepath):
     result = {}
     if len(valid_parents) >= 2:
         # 歌手/专辑/歌曲 结构
-        result['artist'] = _extract_chinese_artist(valid_parents[1])  # 祖父目录
-        result['album'] = valid_parents[0]   # 父目录
+        artist_dir = valid_parents[1]  # 祖父目录
+        album_dir = valid_parents[0]   # 父目录
+        result['artist'] = _extract_chinese_artist(artist_dir)
+        result['album'] = clean_album_dir_name(album_dir)
+        # 从专辑目录名提取年份: "1999-吻别" → year=1999, album=吻别
+        year = _extract_year_from_string(album_dir)
+        if year:
+            result['year'] = year
+        # 如果专辑目录没年份，尝试从歌手目录提取
+        if not result.get('year'):
+            year = _extract_year_from_string(artist_dir)
+            if year:
+                result['year'] = year
     elif len(valid_parents) == 1:
         result['artist'] = _extract_chinese_artist(valid_parents[0])  # 父目录
+        # 也尝试从父目录提取年份
+        year = _extract_year_from_string(valid_parents[0])
+        if year:
+            result['year'] = year
 
     return result
 
@@ -258,6 +316,26 @@ def _extract_chinese_artist(dirname):
         return name.strip()
 
     return name.strip()
+
+
+def clean_album_dir_name(dirname):
+    """
+    从目录名中清洗出专辑名，去除年份前缀。
+    "1999-吻别" -> "吻别"
+    "[1999]吻别" -> "吻别"
+    "1999.吻别" -> "吻别"
+    "吻别(1999)" -> "吻别"
+    """
+    if not dirname:
+        return dirname
+    name = dirname.strip()
+    # 去除开头的年份前缀: "1999.吻别" / "1999-吻别" / "1999_吻别"
+    name = re.sub(r'^\d{4}[.\-_\s]\s*', '', name)
+    # 去除方括号/圆括号中的年份: "吻别[1999]" / "吻别(1999)"
+    name = re.sub(r'[\[【\(（]\s*\d{4}\s*[\]】\)）]', '', name)
+    # 去除末尾的年份: "吻别 1999" -> "吻别"
+    name = re.sub(r'\s*\d{4}$', '', name)
+    return name.strip() or dirname
 
 
 def _clean_album_name(album):
@@ -405,7 +483,7 @@ def extract_metadata(filepath, encoding_fixed_count=None):
     album = normalize_text(album)
     album = _clean_album_name(album)
 
-    year = tags.get('date') or ''
+    year = tags.get('date') or fname.get('year') or dir_info.get('year') or ''
     if year:
         year_match = re.search(r'(\d{4})', year)
         if year_match:

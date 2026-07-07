@@ -17,7 +17,12 @@ COPY organize_music.py /app/organize_music.py
 COPY encoding_fix.py /app/encoding_fix.py
 COPY artist_normalizer.py /app/artist_normalizer.py
 COPY scraper.py /app/scraper.py
+COPY kugou_scraper.py /app/kugou_scraper.py
+COPY netease_scraper.py /app/netease_scraper.py
 COPY fingerprint.py /app/fingerprint.py
+COPY shazam_fingerprint.py /app/shazam_fingerprint.py
+COPY progress.py /app/progress.py
+COPY version.py /app/version.py
 COPY name_map.json /config/name_map.json
 
 WORKDIR /app
