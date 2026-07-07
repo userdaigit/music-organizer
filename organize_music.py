@@ -393,38 +393,36 @@ def deduplicate_songs(songs, source_dir):
 # 标签写入
 # ============================================================
 def write_tags(filepath, meta):
-    """将元数据写入音频文件标签"""
+    """将元数据写入音频文件标签（支持多种格式）"""
     try:
         from mutagen import File as MutagenFile
-        audio = MutagenFile(str(filepath), easy=True)
+        # 不用 easy=True，手动处理不同格式
+        audio = MutagenFile(str(filepath))
         if audio is None:
             return False
     except Exception:
         return False
 
     changed = False
-    if meta.get('title') and 'title' not in audio:
-        audio['title'] = meta['title']
-        changed = True
-    if meta.get('artist') and 'artist' not in audio:
-        audio['artist'] = meta['artist']
-        changed = True
-    if meta.get('album') and 'album' not in audio:
-        audio['album'] = meta['album']
-        changed = True
-    if meta.get('year') and 'date' not in audio:
-        audio['date'] = meta['year']
-        changed = True
-    if meta.get('track') and 'tracknumber' not in audio:
-        audio['tracknumber'] = meta['track']
-        changed = True
+    fields = {
+        'title': meta.get('title'),
+        'artist': meta.get('artist'),
+        'album': meta.get('album'),
+        'date': meta.get('year'),
+        'tracknumber': meta.get('track'),
+    }
 
-    if changed:
-        try:
+    try:
+        for key, value in fields.items():
+            if value and key not in audio:
+                audio[key] = str(value)
+                changed = True
+
+        if changed:
             audio.save()
             return True
-        except Exception:
-            return False
+    except Exception:
+        return False
     return False
 
 
