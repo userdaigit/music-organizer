@@ -15,6 +15,7 @@
 import re
 import json
 import time
+import datetime
 import urllib.request
 import urllib.parse
 from version import MB_USER_AGENT
@@ -200,6 +201,24 @@ class MusicBrainzScraper:
         self._save_cache()
         return result
 
+    @staticmethod
+    def _validate_year(year):
+        """校验年份：拒绝当前年份（可能是错误返回）"""
+        if not year:
+            return False
+        current_year = datetime.datetime.now().year
+        try:
+            y = int(year)
+            # 拒绝当前年份和未来年份
+            if y >= current_year:
+                return False
+            # 拒绝不合理的年份（早于1900）
+            if y < 1900:
+                return False
+            return True
+        except (ValueError, TypeError):
+            return False
+
     def enrich_metadata(self, meta, use_fingerprint=None):
         """
         补全元数据。
@@ -222,11 +241,11 @@ class MusicBrainzScraper:
                 if not result.get('album') and mb_rec.get('album'):
                     result['album'] = mb_rec['album']
                     changed = True
-                if not result.get('year') and mb_rec.get('year'):
+                if not result.get('year') and self._validate_year(mb_rec.get('year')):
                     result['year'] = mb_rec['year']
                     changed = True
                 # 修正标题
-                if mb_rec.get('title') and mb_rec['title'] != result['title']:
+                if mb_rec.get('title') and mb_rec.get('title') != result['title']:
                     pass  # 不覆盖用户已有的标题
 
         # 策略2：如果只有文件名，尝试用文件名查询
@@ -239,14 +258,14 @@ class MusicBrainzScraper:
                 if not result.get('album') and mb_rec.get('album'):
                     result['album'] = mb_rec['album']
                     changed = True
-                if not result.get('year') and mb_rec.get('year'):
+                if not result.get('year') and self._validate_year(mb_rec.get('year')):
                     result['year'] = mb_rec['year']
                     changed = True
 
         # 策略3：如果专辑有但年份没有，查专辑
         if result.get('album') and not result.get('year') and result.get('artist'):
             mb_rel = self.search_release(result['album'], result['artist'])
-            if mb_rel and mb_rel.get('year'):
+            if mb_rel and self._validate_year(mb_rel.get('year')):
                 result['year'] = mb_rel['year']
                 changed = True
 

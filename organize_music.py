@@ -200,21 +200,75 @@ def infer_from_directory(filepath):
 def _extract_chinese_artist(dirname):
     """
     从目录名中提取歌手名。
-    处理 "中文名-英文名" 格式，只保留中文名部分。
-    如 "周杰伦-Jay Chou" -> "周杰伦"
-    如 "陈小春-³¯¤p¬K" -> "陈小春" (乱码部分在 sanitize 中修复)
-    如果没有中文名，返回原名。
+    处理各种目录命名格式：
+    - "中文名-英文名" -> "中文名"
+    - "中文名[1999-专辑]" -> "中文名"
+    - "中文名(1999)" -> "中文名"
+    - "2010.中文名.专辑" -> "中文名"
+    - "中文名" -> "中文名"
     """
     if not dirname:
         return dirname
+    name = dirname.strip()
+
+    # 去除开头的年份前缀: "2010.张学友.xxx" -> "张学友.xxx"
+    name = re.sub(r'^\d{4}[.\-_]\s*', '', name)
+
+    # 去除方括号/圆括号中的年份: "五月天[1999]" / "五月天(1999)" -> "五月天"
+    name = re.sub(r'[\[【\(（]\s*\d{4}\s*[\]】\)）]?', '', name)
+
     # 按 dash 分割（中英文之间常见分隔符）
-    parts = dirname.split('-', 1)
+    parts = name.split('-', 1)
     if len(parts) == 2:
         left = parts[0].strip()
         # 如果左半部分包含 CJK 字符，认为是中文名
         if any(0x4e00 <= ord(ch) <= 0x9fff for ch in left):
-            return left
-    return dirname
+            # 去除左半部分末尾的年份残留: "五月天[1999" -> "五月天"
+            left = re.sub(r'[\[【\(（].*$', '', left)
+            return left.strip()
+    # 没有 dash，检查是否有 CJK
+    if any(0x4e00 <= ord(ch) <= 0x9fff for ch in name):
+        # 去除可能的年份残留
+        name = re.sub(r'[\[【\(（].*$', '', name)
+        # 处理 "歌手.专辑名" 格式：只取第一段（歌手名）
+        if '.' in name:
+            parts = name.split('.', 1)
+            if len(parts) == 2 and 2 <= len(parts[0].strip()) <= 4:
+                # 第一段是2-4个中文字符的歌手名
+                if all(0x4e00 <= ord(ch) <= 0x9fff for ch in parts[0].strip()):
+                    return parts[0].strip()
+        return name.strip()
+    return name.strip()
+
+
+def _clean_album_name(album):
+    """
+    清洗专辑名，去除无关前缀和后缀。
+    "2010.张学友.歌神热辣辣 3CD 引进版" -> "歌神热辣辣"
+    "张学友-歌神热辣辣" -> "歌神热辣辣"
+    """
+    if not album:
+        return album
+    name = album.strip()
+    # 去除开头的年份前缀: "2010.专辑名" / "2010-专辑名"
+    name = re.sub(r'^\d{4}[.\-_\s]\s*', '', name)
+    # 去除开头的歌手名: "张学友.专辑名" / "张学友-专辑名"
+    # 只去除点号或dash分隔的第一段（如果是中文名）
+    if re.match(r'^[\u4e00-\u9fff]+[.\-]', name):
+        parts = re.split(r'[.\-]', name, 1)
+        if len(parts) == 2 and parts[1].strip():
+            # 确保第一段是歌手名（2-4个中文字符）
+            if 2 <= len(parts[0].strip()) <= 4:
+                name = parts[1].strip()
+    # 去除 CD 数量后缀: "3CD", "2CD", "4CD"
+    name = re.sub(r'\s*\d*\s*CD\s*', '', name, flags=re.IGNORECASE)
+    # 去除版本标注: "引进版", "日本版", "港版", "内地版"
+    name = re.sub(r'\s*(引进版|日本版|港版|内地版|台版|欧美版|韩版|日版)\s*', '', name)
+    # 去除音质标注: "SACD", "DSD", "K2HD", "24K GOLD", "HQCD", "HQ"
+    name = re.sub(r'\s*(SACD|DSD|K2HD|24K\s*GOLD|HQCD|HQ|HDCD)\s*', '', name, flags=re.IGNORECASE)
+    # 去除末尾的点和空格
+    name = name.strip('. ')
+    return name if name else album
 
 
 # ============================================================
@@ -245,12 +299,18 @@ def extract_metadata(filepath, encoding_fixed_count=None):
 
     album = tags.get('album') or fname.get('album') or dir_info.get('album') or ''
     album = normalize_text(album)
+    album = _clean_album_name(album)
 
     year = tags.get('date') or ''
     if year:
         year_match = re.search(r'(\d{4})', year)
         if year_match:
             year = year_match.group(1)
+
+    # 年份校验：拒绝当前年份（刮削器可能返回错误年份）
+    current_year = str(datetime.now().year)
+    if year == current_year:
+        year = ''  # 不信任当前年份，留空让刮削器补全
 
     track = tags.get('tracknumber') or fname.get('track') or ''
     if track:
@@ -342,7 +402,9 @@ def sanitize(name):
         parts = name.split('-', 1)
         if len(parts) == 2 and parts[0].strip() == parts[1].strip() and parts[0].strip():
             name = parts[0].strip()
-    # 过滤文件名非法字符
+    # 去除装饰性括号（不影响文件系统，但影响显示）
+    name = re.sub(r'[\[\]【】《》〈〉「」『』]', '', name)
+    # 过滤文件名非法字符（替换为下划线）
     name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', name)
     name = re.sub(r'\s+', ' ', name).strip()
     name = name.strip('. ')
