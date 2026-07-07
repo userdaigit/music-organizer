@@ -874,6 +874,18 @@ def organize(source_dir, output_dir, name_map_path,
         cache_file=str(config_dir / 'fingerprint_cache.json')
     ) if use_fingerprint else None
 
+    # 初始化 Shazam 指纹识别（优先级最高，完全免费无需 API Key）
+    shazam_identifier = None
+    if use_fingerprint:
+        try:
+            from shazam_fingerprint import ShazamIdentifier
+            shazam_identifier = ShazamIdentifier(
+                cache_file=str(config_dir / 'shazam_cache.json')
+            )
+            print(f"  Shazam指纹:  {'可用' if shazam_identifier.is_available() else '不可用(shazamio未安装)'}")
+        except Exception as e:
+            print(f"  Shazam指纹:  初始化失败 ({e})")
+
     # 初始化酷狗刮削器
     kugou_scraper = KugouScraper(
         cache={}
@@ -1098,31 +1110,72 @@ def organize(source_dir, output_dir, name_map_path,
         print("[4/8] 网络刮削: 跳过(未启用)")
 
     # 5. 音频指纹识别（信息全缺的歌曲）
-    if fp_identifier and fp_identifier.is_available():
+    # 优先级: Shazam → AcoustID
+    fp_shazam_count = 0
+    fp_acoustid_count = 0
+    shazam_available = shazam_identifier and shazam_identifier.is_available()
+    acoustid_available = fp_identifier and fp_identifier.is_available()
+    if shazam_available or acoustid_available:
         print()
-        print("[5/8] 音频指纹识别...")
-        fp_count = 0
+        sources = []
+        if shazam_available:
+            sources.append("Shazam")
+        if acoustid_available:
+            sources.append("AcoustID")
+        print(f"[5/8] 音频指纹识别（{' → '.join(sources)}）...")
+
         need_fp_items = [m for m in all_meta
                          if m['artist'] == '未知歌手' or not m.get('title')]
         if need_fp_items:
-            bar = ProgressBar("指纹识别", len(need_fp_items), unit="首")
-            for j, meta in enumerate(need_fp_items):
-                result = fp_identifier.identify(meta['source_path'])
-                if result:
-                    if result.get('title'):
-                        meta['title'] = result['title']
-                        meta['title_display'] = result['title']
-                    if result.get('artist'):
-                        meta['artist'] = result['artist']
-                    fp_count += 1
-                bar.update(j + 1)
-            bar.finish()
-            print(f"  指纹识别: {fp_count} 首")
+            fp_shazam_count = 0
+            fp_acoustid_count = 0
+            remaining_for_acoustid = []
+
+            # 5a. Shazam 识别（优先，免费且曲库最大）
+            if shazam_available:
+                bar = ProgressBar("Shazam     ", len(need_fp_items), unit="首")
+                for j, meta in enumerate(need_fp_items):
+                    try:
+                        result = shazam_identifier.identify(meta['source_path'])
+                        if result and result.get('title'):
+                            if result.get('title'):
+                                meta['title'] = result['title']
+                                meta['title_display'] = result['title']
+                            if result.get('artist'):
+                                meta['artist'] = result['artist']
+                            fp_shazam_count += 1
+                        else:
+                            remaining_for_acoustid.append(meta)
+                    except Exception:
+                        remaining_for_acoustid.append(meta)
+                    bar.update(j + 1)
+                bar.finish()
+                print(f"  Shazam 识别: {fp_shazam_count} 首")
+            else:
+                remaining_for_acoustid = need_fp_items
+
+            # 5b. AcoustID 识别（Shazam 未识别的）
+            if acoustid_available and remaining_for_acoustid:
+                bar = ProgressBar("AcoustID   ", len(remaining_for_acoustid), unit="首")
+                for j, meta in enumerate(remaining_for_acoustid):
+                    result = fp_identifier.identify(meta['source_path'])
+                    if result:
+                        if result.get('title'):
+                            meta['title'] = result['title']
+                            meta['title_display'] = result['title']
+                        if result.get('artist'):
+                            meta['artist'] = result['artist']
+                        fp_acoustid_count += 1
+                    bar.update(j + 1)
+                bar.finish()
+                print(f"  AcoustID 识别: {fp_acoustid_count} 首")
+
+            print(f"  指纹识别总计: {fp_shazam_count + fp_acoustid_count} 首")
         else:
             print(f"  无需指纹识别（所有歌曲已有基本信息）")
     else:
         print()
-        print("[5/8] 音频指纹: 跳过(未启用或API KEY未配置)")
+        print("[5/8] 音频指纹: 跳过(未启用)")
 
     # 6. 分组 + 去重
     print()
@@ -1313,7 +1366,7 @@ def organize(source_dir, output_dir, name_map_path,
         if scraper:
             f.write(f"网络刮削补全: {scraped_mb_count + scraped_kugou_count + scraped_netease_count} (MusicBrainz: {scraped_mb_count}, 网易云: {scraped_netease_count}, 酷狗: {scraped_kugou_count})\n")
         if fp_identifier and fp_identifier.is_available():
-            f.write(f"音频指纹识别: {fp_count}\n")
+            f.write(f"音频指纹识别: {fp_shazam_count + fp_acoustid_count} (Shazam: {fp_shazam_count}, AcoustID: {fp_acoustid_count})\n")
         f.write(f"feat.识别: {feat_count}\n")
         f.write(f"专辑歌曲: {len(album_songs)}\n")
         f.write(f"零散歌曲: {len(singleton_songs)}\n")
@@ -1351,6 +1404,8 @@ def organize(source_dir, output_dir, name_map_path,
     print(f"  歌手规范化: 合并 {merged_count} 个变体")
     if scraper or kugou_scraper:
         print(f"  网络刮削: {scraped_mb_count + scraped_kugou_count + scraped_netease_count} 首 (MB: {scraped_mb_count}, 网易云: {scraped_netease_count}, 酷狗: {scraped_kugou_count})")
+    if fp_shazam_count or fp_acoustid_count:
+        print(f"  指纹识别: {fp_shazam_count + fp_acoustid_count} 首 (Shazam: {fp_shazam_count}, AcoustID: {fp_acoustid_count})")
     print(f"  feat.识别: {feat_count} 首")
     print(f"  去重: {total_dups} 首")
     print("=" * 70)
