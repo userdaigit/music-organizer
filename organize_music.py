@@ -179,6 +179,7 @@ def infer_from_directory(filepath):
         r'|Single$|Singles$|EP$|Albums?$|专辑$|合集$|无损合集$'
         r'|演唱会$|演唱会专辑$|Live$|Concert$'
         r'|vol\.?\d*$|volume\s*\d*$'
+        r'|.*Discography.*$|.*Collection.*$|.*Ultimate.*$|.*Best$'
         r'| FLAC$|MP3$|WAV$|APE$'
         r'| BONUS$|Bonus$|EXTRA$|Extra$)',
         re.IGNORECASE
@@ -236,18 +237,24 @@ def _extract_chinese_artist(dirname):
             # 去除左半部分末尾的年份残留: "五月天[1999" -> "五月天"
             left = re.sub(r'[\[【\(（].*$', '', left)
             return left.strip()
-    # 没有 dash，检查是否有 CJK
-    if any(0x4e00 <= ord(ch) <= 0x9fff for ch in name):
+    # 没有 dash，检查是否有 CJK 或日文假名
+    has_cjk = any(0x4e00 <= ord(ch) <= 0x9fff for ch in name)
+    has_kana = any(0x3040 <= ord(ch) <= 0x30ff for ch in name)
+    if has_cjk or has_kana:
         # 去除可能的年份残留
         name = re.sub(r'[\[【\(（].*$', '', name)
         # 处理 "歌手.专辑名" 格式：只取第一段（歌手名）
         if '.' in name:
             parts = name.split('.', 1)
-            if len(parts) == 2 and 2 <= len(parts[0].strip()) <= 4:
-                # 第一段是2-4个中文字符的歌手名
-                if all(0x4e00 <= ord(ch) <= 0x9fff for ch in parts[0].strip()):
-                    return parts[0].strip()
+            candidate = parts[0].strip()
+            # 如果是合理的歌手名（2-10个字符），取第一段
+            if 2 <= len(candidate) <= 10:
+                if all(0x4e00 <= ord(ch) <= 0x9fff or 0x3040 <= ord(ch) <= 0x30ff or
+                       0x61 <= ord(ch) <= 0x7a or 0x41 <= ord(ch) <= 0x5a
+                       for ch in candidate):
+                    return candidate
         return name.strip()
+
     return name.strip()
 
 
@@ -283,7 +290,9 @@ def _clean_album_name(album):
 
 # 非歌手名模式（这些词被误识别为歌手时，应替换为"未知歌手"）
 NON_ARTIST_PATTERNS = re.compile(
-    r'^(Single$|Singles$|EP$|Albums?$|专辑$|合集$|无损合集$'
+    r'^(\d+$|'
+    r'\d+\s+\w+.*$|'  # "16 Leave Out All the Rest" 等以数字开头的歌曲名
+    r'Single$|Singles$|EP$|Albums?$|专辑$|合集$|无损合集$'
     r'|vol\.?\d*$|volume\s*\d*$'
     r'|BONUS$|Bonus$|EXTRA$|Extra$'
     r'|未知$|Unknown$|Various\s*Artists?$|VA$'
@@ -786,12 +795,11 @@ def organize(source_dir, output_dir, name_map_path,
         try:
             with open(artist_cache_file, 'r', encoding='utf-8') as f:
                 cached_data = json.load(f)
-            # 检查缓存是否过期（name_map 中有新条目时缓存需要刷新）
             cached_count = len(cached_data.get('cache', {}))
-            name_map_count = len(name_map)
-            if cached_count > 0 and name_map_count > cached_count:
+            # name_map 条目数差异超过20%时刷新缓存
+            if cached_count > 0 and abs(name_map_count - cached_count) > max(10, cached_count * 0.2):
                 artist_cache_file.unlink()
-                print(f"  歌手缓存已刷新 ({cached_count} -> {name_map_count} 映射)")
+                print(f"  歌手缓存已刷新 (缓存 {cached_count} 条 → name_map {name_map_count} 条)")
         except Exception:
             pass
 

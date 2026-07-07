@@ -270,10 +270,19 @@
     "Westlife": {"display": "Westlife-西城男孩", "nationality": "foreign"},
     "西城男孩": {"display": "Westlife-西城男孩", "nationality": "foreign"},
 
-    "ZARD": {"display": "ZARD", "nationality": "foreign"},
-    "中岛美雪": {"display": "中岛美雪-Miyuki Nakajima", "nationality": "foreign"},
-    "中島みゆき": {"display": "中岛美雪-Miyuki Nakajima", "nationality": "foreign"},
-    "Miyuki Nakajima": {"display": "中岛美雪-Miyuki Nakajima", "nationality": "foreign"},
+    "ZARD": {"display": "ZARD-坂井泉水", "nationality": "foreign"},
+    "坂井泉水": {"display": "ZARD-坂井泉水", "nationality": "foreign"},
+    "Zard": {"display": "ZARD-坂井泉水", "nationality": "foreign"},
+
+    "amazarashi": {"display": "amazarashi", "nationality": "foreign"},
+
+    "天乐群星": {"display": "群星", "nationality": "cn"},
+    "天樂群星": {"display": "群星", "nationality": "cn"},
+
+    "Unknown Artist": {"display": "未知歌手", "nationality": "cn"},
+    "中岛美雪": {"display": "Miyuki Nakajima-中岛美雪", "nationality": "foreign"},
+    "中島みゆき": {"display": "Miyuki Nakajima-中岛美雪", "nationality": "foreign"},
+    "Miyuki Nakajima": {"display": "Miyuki Nakajima-中岛美雪", "nationality": "foreign"},
 
     "LP Underground": {"display": "Linkin Park-林肯公园", "nationality": "foreign"},
     "LP": {"display": "Linkin Park-林肯公园", "nationality": "foreign"},
@@ -363,8 +372,8 @@
     "朴树": {"display": "朴树-Pu Shu", "nationality": "cn"},
     "Pu Shu": {"display": "朴树-Pu Shu", "nationality": "cn"},
 
-    "中森明菜": {"display": "中森明菜-Akina Nakamori", "nationality": "foreign"},
-    "中森明菜-Miran:Miran": {"display": "中森明菜-Akina Nakamori", "nationality": "foreign"},
+    "中森明菜": {"display": "Akina Nakamori-中森明菜", "nationality": "foreign"},
+    "中森明菜-Miran:Miran": {"display": "Akina Nakamori-中森明菜", "nationality": "foreign"},
 
     "姚蘇蓉": {"display": "姚苏蓉-Yao Su-jung", "nationality": "cn"},
     "姚苏容": {"display": "姚苏蓉-Yao Su-jung", "nationality": "cn"},

@@ -199,63 +199,58 @@ def build_artist_canonical_name(mb_result, original_name):
     """
     根据 MusicBrainz 查询结果构建规范歌手名。
     策略:
-      - 中国歌手（有中文名）: 优先用中文名
-      - 外国歌手: 用其原名
-      - 同时有中英文名: "中文名-英文名"
+      - 用 MB country 判断国籍：JP/KR → foreign 格式，CN/TW/HK → cn 格式
+      - 中国歌手: "中文名-英文名"
+      - 外国歌手: "外文名-中文译名"
+      - 无国籍信息: 按原语言推断
     """
     if not mb_result:
         return original_name
 
     name = mb_result.get('name', original_name)
     aliases = mb_result.get('aliases', [])
-    all_names = [name] + aliases
+    country = mb_result.get('country', '').upper()
+    all_names = [name] + [a for a in aliases if a != name]
 
     # 分类收集各语言的名称
     zh_names = []
     en_names = []
-    other_names = []
-
     for n in all_names:
         lang = detect_language(n)
-        if lang == 'zh':
-            if n not in zh_names:
+        if lang == 'zh' or lang == 'ja':
+            if n not in zh_names and not any(0x3040 <= ord(c) <= 0x30ff for c in n):
                 zh_names.append(n)
         elif lang == 'en':
             if n not in en_names:
                 en_names.append(n)
-        else:
-            if n not in other_names:
-                other_names.append(n)
 
-    # 原始名的语言
-    orig_lang = detect_language(original_name)
+    # 根据 MB country 决定格式
+    is_foreign = country in ('JP', 'KR', 'US', 'GB', 'DE', 'FR', 'SE', 'NO', 'SG', 'CA', 'AU')
 
-    # 决策逻辑
-    if orig_lang == 'zh':
-        # 原始是中文名
-        if en_names:
-            # 有英文名 -> "中文名-英文名"
-            zh = zh_names[0] if zh_names else original_name
-            en = en_names[0]
-            return f"{zh}-{en}"
-        else:
-            # 没有英文名 -> 只用中文名
-            return zh_names[0] if zh_names else original_name
-
-    elif orig_lang == 'en':
-        # 原始是英文名
+    if is_foreign:
+        # 外国歌手: "外文名-中文译名"
+        en = en_names[0] if en_names else name
         if zh_names:
-            # 有中文名 -> "中文名-英文名"
-            zh = zh_names[0]
-            en = en_names[0] if en_names else original_name
-            return f"{zh}-{en}"
-        else:
-            # 没有中文名 -> 只用英文名
-            return en_names[0] if en_names else original_name
-
+            return f"{en}-{zh_names[0]}"
+        return en
+    elif country in ('CN', 'TW', 'HK'):
+        # 中国歌手: "中文名-英文名"
+        zh = zh_names[0] if zh_names else original_name
+        if en_names:
+            return f"{zh}-{en_names[0]}"
+        return zh
     else:
-        # 其他语言 -> 用原语言名
-        return other_names[0] if other_names else name
+        # 无国籍信息，按原始语言推断
+        orig_lang = detect_language(original_name)
+        if orig_lang == 'en':
+            if zh_names:
+                return f"{en_names[0] if en_names else original_name}-{zh_names[0]}"
+            return en_names[0] if en_names else original_name
+        else:
+            if en_names:
+                zh = zh_names[0] if zh_names else original_name
+                return f"{zh}-{en_names[0]}"
+            return zh_names[0] if zh_names else original_name
 
 
 # ============================================================
