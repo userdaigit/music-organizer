@@ -68,15 +68,15 @@ def is_garbled(text):
 
     # 统计字符类型
     cjk_count = 0
-    latin_ext_count = 0  # Latin Extended / Supplement (中文误读常见)
+    latin_ext_count = 0  # Latin-1 Supplement (0x80-0xFF) - 中文误读常见
     for ch in text:
         cat = unicodedata.category(ch)
         cp = ord(ch)
         # CJK 统一汉字范围
         if 0x4e00 <= cp <= 0x9fff or 0x3400 <= cp <= 0x4dbf:
             cjk_count += 1
-        # Latin-1 Supplement (À-ÿ) - 中文GBK误读常见
-        elif 0xc0 <= cp <= 0xff:
+        # Latin-1 Supplement (0x80-0xFF) - 中文GBK/Big5误读常见
+        elif 0x80 <= cp <= 0xff:
             latin_ext_count += 1
 
     # 如果有大量 Latin-1 Supplement 字符且没有对应的合理上下文
@@ -87,45 +87,91 @@ def is_garbled(text):
     if cjk_count > 0 and latin_ext_count >= cjk_count:
         return True
 
+    # 有 CJK 字符但也存在 Latin-1 Supplement 乱码片段（至少 2 个连续）
+    if cjk_count > 0 and latin_ext_count >= 2:
+        return True
+
     return False
 
 
 def try_fix_encoding(text, original_encoding='utf-8'):
     """
     尝试修复乱码文本。
-    策略：将文本按 ISO-8859-1/Latin-1 编码回字节，再用中文编码解码。
+    策略1：整段修复——将文本按 Latin-1 编码回字节，再用中文编码解码。
+    策略2：逐段修复——当文本混合了正常中文和乱码时，只修复乱码片段。
     """
     if not text or not is_garbled(text):
         return text, False
 
-    # 策略1：UTF-8 -> Latin-1 字节 -> GBK/GB18030
-    try:
-        raw_bytes = text.encode('latin-1')
-        for enc in CHINESE_ENCODINGS:
+    # 策略1：整段修复（纯乱码文本，无 CJK 字符）
+    # 尝试所有编码，选择 CJK 字符最多的结果
+    best_result = None
+    best_cjk = 0
+    for src_enc in ['latin-1', 'cp1252']:
+        try:
+            raw_bytes = text.encode(src_enc)
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            continue
+        for dst_enc in CHINESE_ENCODINGS:
             try:
-                decoded = raw_bytes.decode(enc)
-                # 验证解码结果是否合理（包含 CJK 字符）
-                if _is_valid_chinese_text(decoded):
-                    return decoded, True
+                decoded = raw_bytes.decode(dst_enc)
+                cjk = sum(1 for ch in decoded if 0x4e00 <= ord(ch) <= 0x9fff)
+                if cjk > best_cjk:
+                    best_cjk = cjk
+                    best_result = decoded
             except (UnicodeDecodeError, UnicodeEncodeError):
                 continue
-    except (UnicodeEncodeError, UnicodeDecodeError):
-        pass
+    if best_result and best_cjk > 0:
+        return best_result, True
 
-    # 策略2：UTF-8 -> CP1252 字节 -> GBK/GB18030
-    try:
-        raw_bytes = text.encode('cp1252')
-        for enc in CHINESE_ENCODINGS:
-            try:
-                decoded = raw_bytes.decode(enc)
-                if _is_valid_chinese_text(decoded):
-                    return decoded, True
-            except (UnicodeDecodeError, UnicodeEncodeError):
-                continue
-    except (UnicodeEncodeError, UnicodeDecodeError):
-        pass
+    # 策略3：逐段修复——混合文本（正常中文 + 乱码片段）
+    # 乱码段 = 以 Latin-1 Supplement 字符为主，可夹杂 ASCII 字母/数字
+    # （Big5 编码第二字节可以是 ASCII 0x40-0x7E，如 O=0x4F, K=0x4B）
+    fixed_parts = []
+    any_fixed = False
+    i = 0
+    while i < len(text):
+        # 检测乱码段起点：Latin-1 Supplement 字符
+        if 0x80 <= ord(text[i]) <= 0xff:
+            j = i
+            latin_count = 0
+            while j < len(text):
+                cp = ord(text[j])
+                if 0x80 <= cp <= 0xff:
+                    # Latin-1 Supplement 字符，属于乱码段
+                    latin_count += 1
+                    j += 1
+                elif (0x41 <= cp <= 0x7a or 0x30 <= cp <= 0x39):
+                    # ASCII 字母/数字：如果前后有 Latin-1 Supplement 字符则属于乱码段
+                    prev_is_latin = j > i and 0x80 <= ord(text[j - 1]) <= 0xff
+                    next_is_latin = j + 1 < len(text) and 0x80 <= ord(text[j + 1]) <= 0xff
+                    if prev_is_latin or next_is_latin:
+                        j += 1
+                    else:
+                        break
+                else:
+                    break
+            # text[i:j] 是一个乱码段（至少 2 个 Latin-1 Supplement 字符才尝试修复）
+            garbled_segment = text[i:j]
+            if latin_count >= 2:
+                fixed_segment = _fix_garbled_segment(garbled_segment)
+                if fixed_segment:
+                    fixed_parts.append(fixed_segment)
+                    any_fixed = True
+                else:
+                    fixed_parts.append(garbled_segment)
+            else:
+                fixed_parts.append(garbled_segment)
+            i = j
+        else:
+            fixed_parts.append(text[i])
+            i += 1
 
-    # 策略3：直接尝试不同编码间的转换
+    if any_fixed:
+        result = ''.join(fixed_parts)
+        return result, True
+
+    # 策略4：直接 UTF-8 字节尝试中文编码解码
     try:
         raw_bytes = text.encode('utf-8')
         for enc in CHINESE_ENCODINGS:
@@ -139,6 +185,33 @@ def try_fix_encoding(text, original_encoding='utf-8'):
         pass
 
     return text, False
+
+
+def _fix_garbled_segment(segment):
+    """
+    修复单个乱码片段（纯 Latin-1 Supplement 字符段）。
+    尝试用 Latin-1/CP1252 编码回字节，再用中文编码解码。
+    如果多个编码都能解码，选择 CJK 字符最多的结果。
+    返回修复后的字符串，失败返回 None。
+    """
+    best_result = None
+    best_cjk_count = 0
+
+    for src_enc in ['latin-1', 'cp1252']:
+        try:
+            raw_bytes = segment.encode(src_enc)
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            continue
+        for dst_enc in CHINESE_ENCODINGS:
+            try:
+                decoded = raw_bytes.decode(dst_enc)
+                cjk = sum(1 for ch in decoded if 0x4e00 <= ord(ch) <= 0x9fff)
+                if cjk > best_cjk_count:
+                    best_cjk_count = cjk
+                    best_result = decoded
+            except (UnicodeDecodeError, UnicodeDecodeError):
+                continue
+    return best_result
 
 
 def _is_valid_chinese_text(text):
