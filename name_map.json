@@ -17,9 +17,11 @@
 
     "张学友": {"display": "张学友-Jacky Cheung", "nationality": "cn"},
     "Jacky Cheung": {"display": "张学友-Jacky Cheung", "nationality": "cn"},
+    "Cheung Hok Yau": {"display": "张学友-Jacky Cheung", "nationality": "cn"},
 
     "刘德华": {"display": "刘德华-Andy Lau", "nationality": "cn"},
     "Andy Lau": {"display": "刘德华-Andy Lau", "nationality": "cn"},
+    "Lau Tak Wah": {"display": "刘德华-Andy Lau", "nationality": "cn"},
 
     "五月天": {"display": "五月天-Mayday", "nationality": "cn"},
     "Mayday": {"display": "五月天-Mayday", "nationality": "cn"},
@@ -90,13 +92,18 @@
 
     "郭富城": {"display": "郭富城-Aaron Kwok", "nationality": "cn"},
     "Aaron Kwok": {"display": "郭富城-Aaron Kwok", "nationality": "cn"},
+    "Kwok Fu Shing": {"display": "郭富城-Aaron Kwok", "nationality": "cn"},
 
     "李克勤": {"display": "李克勤-Hacken Lee", "nationality": "cn"},
     "Hacken Lee": {"display": "李克勤-Hacken Lee", "nationality": "cn"},
+    "Lee Hak Kan": {"display": "李克勤-Hacken Lee", "nationality": "cn"},
 
     "叶倩文": {"display": "叶倩文-Sally Yeh", "nationality": "cn"},
-    "Sally Yeh": {"display": "叶倩文-Sally Yeh", "nationality": "cn"},
     "葉倩文": {"display": "叶倩文-Sally Yeh", "nationality": "cn"},
+    "叶蒨文": {"display": "叶倩文-Sally Yeh", "nationality": "cn"},
+    "Sally Yeh": {"display": "叶倩文-Sally Yeh", "nationality": "cn"},
+    "Sally Yip": {"display": "叶倩文-Sally Yeh", "nationality": "cn"},
+    "Yip Sin Man": {"display": "叶倩文-Sally Yeh", "nationality": "cn"},
 
     "陈慧琳": {"display": "陈慧琳-Kelly Chen", "nationality": "cn"},
     "Kelly Chen": {"display": "陈慧琳-Kelly Chen", "nationality": "cn"},
@@ -255,6 +262,14 @@
     "后街男孩": {"display": "Backstreet Boys-后街男孩", "nationality": "foreign"},
 
     "Westlife": {"display": "Westlife-西城男孩", "nationality": "foreign"},
-    "西城男孩": {"display": "Westlife-西城男孩", "nationality": "foreign"}
+    "西城男孩": {"display": "Westlife-西城男孩", "nationality": "foreign"},
+
+    "ZARD": {"display": "ZARD", "nationality": "foreign"},
+    "中岛美雪": {"display": "中岛美雪-Miyuki Nakajima", "nationality": "foreign"},
+    "中島みゆき": {"display": "中岛美雪-Miyuki Nakajima", "nationality": "foreign"},
+    "Miyuki Nakajima": {"display": "中岛美雪-Miyuki Nakajima", "nationality": "foreign"},
+
+    "LP Underground": {"display": "Linkin Park-林肯公园", "nationality": "foreign"},
+    "LP": {"display": "Linkin Park-林肯公园", "nationality": "foreign"}
   }
 }

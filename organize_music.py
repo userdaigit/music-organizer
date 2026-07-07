@@ -170,14 +170,19 @@ def infer_from_directory(filepath):
     """
     从目录结构推断歌手和专辑。
     支持任意层级，智能识别 歌手/专辑 结构。
+    跳过非歌手/非专辑的中间目录（Single/EP/Albums/CD1 等）。
     """
     parents = list(filepath.parents)
-    # 过滤掉根目录和无效目录名
-    valid_parents = []
+    # 需要跳过的目录名（不是歌手名也不是专辑名）
     skip_patterns = re.compile(
-        r'^(\d+$|CD\d?$|Disc\s?\d+$|music$|music2$|.*\.trae$|tmp$)',
+        r'^(\d+$|CD\d?$|Disc\s?\d+$|music$|music2$|.*\.trae$|tmp$'
+        r'|Single$|Singles$|EP$|Albums?$|专辑$|合集$|无损合集$'
+        r'|vol\.?\d*$|volume\s*\d*$'
+        r'| FLAC$|MP3$|WAV$|APE$'
+        r'| BONUS$|Bonus$|EXTRA$|Extra$)',
         re.IGNORECASE
     )
+    valid_parents = []
     for p in parents:
         name = p.name
         if not name or skip_patterns.match(name):
@@ -210,6 +215,10 @@ def _extract_chinese_artist(dirname):
     if not dirname:
         return dirname
     name = dirname.strip()
+
+    # 去除"专辑无损合集""无损合集""精选集"等后缀
+    name = re.sub(r'(专辑)?(无损)?合集.*$', '', name)
+    name = re.sub(r'(精选集|精选|作品集|全集|大碟).*$', '', name)
 
     # 去除开头的年份前缀: "2010.张学友.xxx" -> "张学友.xxx"
     name = re.sub(r'^\d{4}[.\-_]\s*', '', name)
@@ -271,6 +280,31 @@ def _clean_album_name(album):
     return name if name else album
 
 
+# 非歌手名模式（这些词被误识别为歌手时，应替换为"未知歌手"）
+NON_ARTIST_PATTERNS = re.compile(
+    r'^(Single$|Singles$|EP$|Albums?$|专辑$|合集$|无损合集$'
+    r'|vol\.?\d*$|volume\s*\d*$'
+    r'|BONUS$|Bonus$|EXTRA$|Extra$'
+    r'|未知$|Unknown$|Various\s*Artists?$|VA$'
+    r'|OST$|Soundtrack$|原声$|原声带$'
+    r'|FLAC$|MP3$|WAV$|APE$)',
+    re.IGNORECASE
+)
+
+
+def _filter_non_artist(name):
+    """过滤非歌手名，返回'未知歌手'如果名字不是合理的歌手名"""
+    if not name:
+        return '未知歌手'
+    name = name.strip()
+    if NON_ARTIST_PATTERNS.match(name):
+        return '未知歌手'
+    # 过长名字（>25字符）可能是歌曲名/专辑名而非歌手名
+    if len(name) > 25:
+        return '未知歌手'
+    return name
+
+
 # ============================================================
 # 元数据提取
 # ============================================================
@@ -296,6 +330,8 @@ def extract_metadata(filepath, encoding_fixed_count=None):
               or dir_info.get('artist')
               or '未知歌手')
     artist = normalize_text(artist)
+    # 过滤非歌手名（Single/EP/Album/专辑 等被误识别为歌手）
+    artist = _filter_non_artist(artist)
 
     album = tags.get('album') or fname.get('album') or dir_info.get('album') or ''
     album = normalize_text(album)
