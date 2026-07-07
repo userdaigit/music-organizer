@@ -815,6 +815,18 @@ def organize(source_dir, output_dir, name_map_path,
         cache={}
     ) if use_scrape else None
 
+    # 初始化网易云音乐刮削器
+    netease_scraper = None
+    if use_scrape:
+        try:
+            from netease_scraper import NetEaseScraper
+            netease_scraper = NetEaseScraper(
+                cache_file=str(config_dir / 'netease_cache.json')
+            )
+            print(f"  网易云刮削: 可用")
+        except Exception as e:
+            print(f"  网易云刮削: 初始化失败 ({e})")
+
     if use_fingerprint:
         fp_available = fp_identifier.is_available()
         fp_key_status = fp_identifier.get_key_status()
@@ -882,6 +894,43 @@ def organize(source_dir, output_dir, name_map_path,
         bar.update(i + 1)
     bar.finish()
 
+    # 用网易云音乐补充未识别的歌手别名
+    if netease_scraper:
+        unresolved = [a for a in all_artists if artist_mapping.get(a, a) == a]
+        if unresolved:
+            bar = ProgressBar("网易云补全", len(unresolved), unit="位")
+            netease_enriched = 0
+            for i, artist in enumerate(unresolved):
+                try:
+                    aliases = netease_scraper.get_artist_aliases(artist)
+                    if aliases:
+                        # 如果有别名，用"原名-别名"格式
+                        from artist_normalizer import detect_language
+                        zh_names = []
+                        en_names = []
+                        for alias in aliases + [artist]:
+                            lang = detect_language(alias)
+                            if lang == 'zh' and alias not in zh_names:
+                                zh_names.append(alias)
+                            elif lang == 'en' and alias not in en_names:
+                                en_names.append(alias)
+                        if zh_names and en_names:
+                            canonical = f"{zh_names[0]}-{en_names[0]}"
+                        elif zh_names:
+                            canonical = zh_names[0]
+                        elif en_names:
+                            canonical = en_names[0]
+                        else:
+                            canonical = artist
+                        if canonical != artist:
+                            artist_mapping[artist] = canonical
+                            netease_enriched += 1
+                except Exception:
+                    pass
+                bar.update(i + 1)
+            bar.finish()
+            print(f"  网易云补充歌手别名: {netease_enriched} 位")
+
     # 统计合并情况
     merged_count = sum(1 for k, v in artist_mapping.items() if k != v)
     print(f"  规范化完成: 合并 {merged_count} 个变体")
@@ -895,9 +944,10 @@ def organize(source_dir, output_dir, name_map_path,
     # 4. 多刮削源补全（MusicBrainz → 酷狗音乐）
     if use_scrape:
         print()
-        print("[4/8] 网络刮削补全元数据（MusicBrainz → 酷狗音乐）...")
+        print("[4/8] 网络刮削补全元数据（MusicBrainz → 网易云 → 酷狗音乐）...")
         scraped_mb_count = 0
         scraped_kugou_count = 0
+        scraped_netease_count = 0
         need_scrape_items = [(i, m) for i, m in enumerate(all_meta)
                              if (not m.get('album') or not m.get('year'))
                              and m['artist'] != '未知歌手']
@@ -922,7 +972,26 @@ def organize(source_dir, output_dir, name_map_path,
         else:
             remaining_items = need_scrape_items
 
-        # 4b. 酷狗音乐刮削（对 MusicBrainz 未补全的歌曲）
+        # 4b. 网易云音乐刮削（对 MusicBrainz 未补全的歌曲）
+        if netease_scraper and remaining_items:
+            bar = ProgressBar("网易云音乐  ", len(remaining_items), unit="首")
+            still_remaining = []
+            for j, (i, meta) in enumerate(remaining_items):
+                try:
+                    enriched, changed = netease_scraper.enrich_metadata(meta)
+                    if changed:
+                        all_meta[i] = enriched
+                        scraped_netease_count += 1
+                    else:
+                        still_remaining.append((i, all_meta[i]))
+                except Exception:
+                    still_remaining.append((i, all_meta[i]))
+                bar.update(j + 1)
+            bar.finish()
+            print(f"  网易云音乐补全: {scraped_netease_count} 首")
+            remaining_items = still_remaining
+
+        # 4c. 酷狗音乐刮削（对前面未补全的歌曲）
         if kugou_scraper and kugou_scraper.is_available() and remaining_items:
             bar = ProgressBar("酷狗音乐  ", len(remaining_items), unit="首")
             for j, (i, meta) in enumerate(remaining_items):
@@ -939,7 +1008,7 @@ def organize(source_dir, output_dir, name_map_path,
             elif not kugou_scraper.is_available():
                 print(f"  酷狗音乐: 接口不可用")
 
-        total_scraped = scraped_mb_count + scraped_kugou_count
+        total_scraped = scraped_mb_count + scraped_kugou_count + scraped_netease_count
         print(f"  刮削总计: {total_scraped} 首")
     else:
         print()
@@ -1159,7 +1228,7 @@ def organize(source_dir, output_dir, name_map_path,
         f.write(f"修复乱码: {encoding_fixed_count[0]}\n")
         f.write(f"歌手规范化: 合并 {merged_count} 个变体\n")
         if scraper:
-            f.write(f"网络刮削补全: {scraped_mb_count + scraped_kugou_count} (MusicBrainz: {scraped_mb_count}, 酷狗: {scraped_kugou_count})\n")
+            f.write(f"网络刮削补全: {scraped_mb_count + scraped_kugou_count + scraped_netease_count} (MusicBrainz: {scraped_mb_count}, 网易云: {scraped_netease_count}, 酷狗: {scraped_kugou_count})\n")
         if fp_identifier and fp_identifier.is_available():
             f.write(f"音频指纹识别: {fp_count}\n")
         f.write(f"feat.识别: {feat_count}\n")
@@ -1198,7 +1267,7 @@ def organize(source_dir, output_dir, name_map_path,
     print(f"  修复乱码: {encoding_fixed_count[0]}")
     print(f"  歌手规范化: 合并 {merged_count} 个变体")
     if scraper or kugou_scraper:
-        print(f"  网络刮削: {scraped_mb_count + scraped_kugou_count} 首 (MB: {scraped_mb_count}, 酷狗: {scraped_kugou_count})")
+        print(f"  网络刮削: {scraped_mb_count + scraped_kugou_count + scraped_netease_count} 首 (MB: {scraped_mb_count}, 网易云: {scraped_netease_count}, 酷狗: {scraped_kugou_count})")
     print(f"  feat.识别: {feat_count} 首")
     print(f"  去重: {total_dups} 首")
     print("=" * 70)
