@@ -174,10 +174,10 @@ def test_sanitize_control_chars():
 
 
 def test_sanitize_long_name():
-    """超长名称应被截断为 200 字符"""
+    """超长名称应被截断为 80 字符"""
     long_name = 'a' * 300
     result = sanitize(long_name)
-    assert len(result) == 200
+    assert len(result) == 80
 
 
 def test_sanitize_all_illegal_becomes_unknown():

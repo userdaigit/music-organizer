@@ -284,8 +284,8 @@ def sanitize(name):
     name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', name)
     name = re.sub(r'\s+', ' ', name).strip()
     name = name.strip('. ')
-    if len(name) > 200:
-        name = name[:200]
+    if len(name) > 80:
+        name = name[:80]
     return name if name else '未知'
 
 
@@ -307,6 +307,12 @@ def build_target_path(meta, is_singleton, artist_canonical):
     track = meta.get('track', '')
     album = sanitize(meta.get('album')) or ''
 
+    # 群星歌曲：歌手名含多个歌手时，目录名用"群星"避免路径过长
+    if artist.count('.') + artist.count(',') + artist.count('、') >= 4:
+        artist_dir = '群星'
+    else:
+        artist_dir = artist_display
+
     # 序号前缀
     track_prefix = f"{track}-" if track else ''
 
@@ -322,7 +328,7 @@ def build_target_path(meta, is_singleton, artist_canonical):
         album_part = f"{year}-{album or '未知专辑'}"
         filename = f"{track_prefix}{title}-{artist}-{album}"
 
-    return f"{artist_display}/{album_part}/{filename}"
+    return f"{artist_dir}/{album_part}/{filename}"
 
 
 # ============================================================
@@ -738,40 +744,40 @@ def organize(source_dir, output_dir, name_map_path,
 
     bar = ProgressBar("复制文件", len(tasks), unit="首")
     for task_idx, (meta, is_singleton) in enumerate(tasks):
-        artist_canonical = artist_mapping.get(meta['artist'], meta['artist'])
-        target_rel = build_target_path(meta, is_singleton, artist_canonical)
-        ext = Path(meta['source_path']).suffix
-        target_path = Path(output_dir) / f"{target_rel}{ext}"
-
-        # 幂等：目标已存在则跳过
-        if target_path.exists():
-            skipped += 1
-            report.append({
-                'source': meta['source_path'],
-                'target': str(target_path),
-                'status': 'skipped',
-                'artist': meta['artist'],
-                'title': meta.get('title_display', meta['title']),
-                'type': 'singleton' if is_singleton else 'album',
-            })
-            bar.update(task_idx + 1)
-            continue
-
-        if dry_run:
-            print(f"\r  [DRY-RUN] {Path(meta['source_path']).name} -> {target_rel}{ext}")
-            copied += 1
-            report.append({
-                'source': meta['source_path'],
-                'target': str(target_path),
-                'status': 'dry-run',
-                'artist': meta['artist'],
-                'title': meta.get('title_display', meta['title']),
-                'type': 'singleton' if is_singleton else 'album',
-            })
-            bar.update(task_idx + 1)
-            continue
-
         try:
+            artist_canonical = artist_mapping.get(meta['artist'], meta['artist'])
+            target_rel = build_target_path(meta, is_singleton, artist_canonical)
+            ext = Path(meta['source_path']).suffix
+            target_path = Path(output_dir) / f"{target_rel}{ext}"
+
+            # 幂等：目标已存在则跳过
+            if target_path.exists():
+                skipped += 1
+                report.append({
+                    'source': meta['source_path'],
+                    'target': str(target_path),
+                    'status': 'skipped',
+                    'artist': meta['artist'],
+                    'title': meta.get('title_display', meta['title']),
+                    'type': 'singleton' if is_singleton else 'album',
+                })
+                bar.update(task_idx + 1)
+                continue
+
+            if dry_run:
+                print(f"\r  [DRY-RUN] {Path(meta['source_path']).name} -> {target_rel}{ext}")
+                copied += 1
+                report.append({
+                    'source': meta['source_path'],
+                    'target': str(target_path),
+                    'status': 'dry-run',
+                    'artist': meta['artist'],
+                    'title': meta.get('title_display', meta['title']),
+                    'type': 'singleton' if is_singleton else 'album',
+                })
+                bar.update(task_idx + 1)
+                continue
+
             target_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(meta['source_path'], str(target_path))
             copied += 1
@@ -789,6 +795,9 @@ def organize(source_dir, output_dir, name_map_path,
                 'title': meta.get('title_display', meta['title']),
                 'type': 'singleton' if is_singleton else 'album',
             })
+        except OSError as e:
+            print(f"\n  [错误] {meta['source_path']}: {e}")
+            errors += 1
         except Exception as e:
             print(f"\n  [错误] {meta['source_path']}: {e}")
             errors += 1
