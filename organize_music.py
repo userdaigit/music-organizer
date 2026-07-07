@@ -941,10 +941,10 @@ def organize(source_dir, output_dir, name_map_path,
             meta['artist_original'] = meta['artist']
             meta['artist'] = artist_mapping[meta['artist']]
 
-    # 4. 多刮削源补全（MusicBrainz → 酷狗音乐）
+    # 4. 多刮削源补全（网易云 → MusicBrainz → 酷狗音乐）
     if use_scrape:
         print()
-        print("[4/8] 网络刮削补全元数据（MusicBrainz → 网易云 → 酷狗音乐）...")
+        print("[4/8] 网络刮削补全元数据（网易云 → MusicBrainz → 酷狗音乐）...")
         scraped_mb_count = 0
         scraped_kugou_count = 0
         scraped_netease_count = 0
@@ -952,43 +952,43 @@ def organize(source_dir, output_dir, name_map_path,
                              if (not m.get('album') or not m.get('year'))
                              and m['artist'] != '未知歌手']
 
-        # 4a. MusicBrainz 刮削
-        if scraper:
-            bar = ProgressBar("MusicBrainz", len(need_scrape_items), unit="首")
+        # 4a. 网易云音乐刮削（优先级最高，华语歌曲覆盖率高）
+        if netease_scraper and need_scrape_items:
+            bar = ProgressBar("网易云音乐  ", len(need_scrape_items), unit="首")
             remaining_items = []
             for j, (i, meta) in enumerate(need_scrape_items):
-                enriched, changed = scraper.enrich_metadata(
-                    meta,
-                    use_fingerprint=None  # 指纹在步骤5单独处理
-                )
-                if changed:
-                    all_meta[i] = enriched
-                    scraped_mb_count += 1
-                else:
-                    remaining_items.append((i, all_meta[i]))
-                bar.update(j + 1)
-            bar.finish()
-            print(f"  MusicBrainz 补全: {scraped_mb_count} 首")
-        else:
-            remaining_items = need_scrape_items
-
-        # 4b. 网易云音乐刮削（对 MusicBrainz 未补全的歌曲）
-        if netease_scraper and remaining_items:
-            bar = ProgressBar("网易云音乐  ", len(remaining_items), unit="首")
-            still_remaining = []
-            for j, (i, meta) in enumerate(remaining_items):
                 try:
                     enriched, changed = netease_scraper.enrich_metadata(meta)
                     if changed:
                         all_meta[i] = enriched
                         scraped_netease_count += 1
                     else:
-                        still_remaining.append((i, all_meta[i]))
+                        remaining_items.append((i, all_meta[i]))
                 except Exception:
-                    still_remaining.append((i, all_meta[i]))
+                    remaining_items.append((i, all_meta[i]))
                 bar.update(j + 1)
             bar.finish()
             print(f"  网易云音乐补全: {scraped_netease_count} 首")
+        else:
+            remaining_items = need_scrape_items
+
+        # 4b. MusicBrainz 刮削（对网易云未补全的歌曲）
+        if scraper and remaining_items:
+            bar = ProgressBar("MusicBrainz", len(remaining_items), unit="首")
+            still_remaining = []
+            for j, (i, meta) in enumerate(remaining_items):
+                enriched, changed = scraper.enrich_metadata(
+                    meta,
+                    use_fingerprint=None
+                )
+                if changed:
+                    all_meta[i] = enriched
+                    scraped_mb_count += 1
+                else:
+                    still_remaining.append((i, all_meta[i]))
+                bar.update(j + 1)
+            bar.finish()
+            print(f"  MusicBrainz 补全: {scraped_mb_count} 首")
             remaining_items = still_remaining
 
         # 4c. 酷狗音乐刮削（对前面未补全的歌曲）

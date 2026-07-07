@@ -383,10 +383,13 @@ class ArtistNormalizer:
                 if canonical in self.name_map:
                     canonical = self.name_map[canonical]
                 # 繁简转换后再查一次 name_map
-                from text_utils import normalize_text
-                simplified = normalize_text(canonical)
-                if simplified != canonical and simplified in self.name_map:
-                    canonical = self.name_map[simplified]
+                try:
+                    from encoding_fix import normalize_text
+                    simplified = normalize_text(canonical)
+                    if simplified != canonical and simplified in self.name_map:
+                        canonical = self.name_map[simplified]
+                except ImportError:
+                    pass
                 # 如果是合唱歌曲，用第一个歌手的 canonical
                 if primary != artist_name:
                     primary_canonical = self.name_map.get(primary, canonical)
