@@ -293,14 +293,50 @@ def extract_metadata(filepath, encoding_fixed_count=None):
 # ============================================================
 # 文件名清理
 # ============================================================
+# 广告/无关信息过滤词表（正则，大小写不敏感）
+AD_PATTERNS = [
+    re.compile(r'捌零音乐论坛', re.IGNORECASE),
+    re.compile(r'捌零音乐', re.IGNORECASE),
+    re.compile(r'FLT字幕组', re.IGNORECASE),
+    re.compile(r' raided\.net', re.IGNORECASE),
+    re.compile(r'\[.*?音乐论坛.*?\]', re.IGNORECASE),
+    re.compile(r'【.*?音乐论坛.*?】', re.IGNORECASE),
+    re.compile(r'\(.*?音乐论坛.*?\)', re.IGNORECASE),
+    re.compile(r'（.*?音乐论坛.*?）', re.IGNORECASE),
+    re.compile(r'\[FLAC\]', re.IGNORECASE),
+    re.compile(r'【无损音乐】', re.IGNORECASE),
+    re.compile(r'\[www\..*?\]', re.IGNORECASE),
+    re.compile(r'http[s]?://\S+', re.IGNORECASE),
+    # 常见音乐论坛/资源站广告
+    re.compile(r'发烧.*?论坛', re.IGNORECASE),
+    re.compile(r'HiFi.*?论坛', re.IGNORECASE),
+    re.compile(r' PT\b', re.IGNORECASE),
+    # 经过 hash 校验，可以安全删除的尾巴
+    re.compile(r'[\-_\s]+$', re.IGNORECASE),  # 结尾的 -_ 空格
+]
+
+
+def remove_ads(text):
+    """移除广告和无关信息"""
+    if not text:
+        return text
+    for pattern in AD_PATTERNS:
+        text = pattern.sub('', text)
+    # 清理因移除广告产生的连续分隔符
+    text = re.sub(r'[\-_\s]{2,}', ' ', text)
+    return text.strip(' -_')
+
+
 def sanitize(name):
-    """清理文件名中的非法字符，修复乱码，繁体转简体"""
+    """清理文件名中的非法字符，修复乱码，繁体转简体，移除广告"""
     if not name:
         return '未知'
     # 先修复乱码（Latin-1 误读的 GBK/BIG5）
     name, _ = try_fix_encoding(name)
     # NFC 规范化 + 繁体转简体 + 清理控制字符
     name = normalize_text(name)
+    # 移除广告和无关信息
+    name = remove_ads(name)
     # 去重：如果名字是 X-X 格式且两边相同（如"陈小春-陈小春"），只保留一边
     if '-' in name:
         parts = name.split('-', 1)
@@ -324,8 +360,9 @@ ALBUM_MIN_TRACKS = 3
 def build_target_path(meta, is_singleton, artist_canonical):
     """
     根据命名规则构建目标相对路径。
-    专辑(3首以上): 歌手/年份-专辑/序号-歌曲名-歌手-专辑.ext
-    单曲(含原专辑名): 歌手/其他/序号-歌曲名-歌手-专辑.ext
+    专辑(3首以上): 歌手/年份-专辑/序号-歌曲名-歌手-专辑-实唱歌手.ext
+    单曲(含原专辑名): 歌手/其他/序号-歌曲名-歌手-专辑-实唱歌手.ext
+    当实唱歌手与专辑歌手相同时，不重复显示。
     """
     artist_display = sanitize(artist_canonical)
     title = sanitize(meta['title_display'])
@@ -342,6 +379,16 @@ def build_target_path(meta, is_singleton, artist_canonical):
     # 序号前缀
     track_prefix = f"{track}-" if track else ''
 
+    # 实唱歌手：当 tag 中的歌手与专辑目录歌手不同时，追加到文件名末尾
+    # 例如：周杰伦专辑中江语晨唱的歌，文件名为 歌名-周杰伦-专辑-江语晨
+    feat_artist = ''
+    raw_dir_artist = meta.get('dir_artist', '')
+    tag_artist = sanitize(meta.get('artist', ''))
+    dir_artist = sanitize(raw_dir_artist) if raw_dir_artist else ''
+    # 只有 dir_artist 存在且与 tag_artist 不同时才标记为嘉宾歌曲
+    if dir_artist and dir_artist != '未知' and tag_artist and tag_artist != dir_artist:
+        feat_artist = tag_artist
+
     if is_singleton:
         album_part = '其他'
         # 单曲也带上专辑名（如果有）
@@ -352,7 +399,12 @@ def build_target_path(meta, is_singleton, artist_canonical):
     else:
         year = meta.get('year') or '未知'
         album_part = f"{year}-{album or '未知专辑'}"
-        filename = f"{track_prefix}{title}-{artist}-{album}"
+        # 专辑歌曲：用专辑歌手（artist_display）作为主歌手
+        filename = f"{track_prefix}{title}-{artist_display}-{album}"
+
+    # 追加实唱歌手（如果与专辑歌手不同）
+    if feat_artist and feat_artist != artist_display:
+        filename += f"-{feat_artist}"
 
     return f"{artist_dir}/{album_part}/{filename}"
 

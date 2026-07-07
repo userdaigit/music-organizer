@@ -406,7 +406,7 @@ def test_build_target_path_album_no_album():
 
 
 def test_build_target_path_artist_canonical_differs():
-    """artist_canonical 与 meta['artist'] 不同时使用 canonical 作为目录名"""
+    """artist_canonical 与 meta['artist'] 不同时使用 canonical 作为目录名和文件名中的歌手"""
     meta = {
         'title_display': '简单爱',
         'artist': 'Jay Chou',
@@ -415,8 +415,38 @@ def test_build_target_path_artist_canonical_differs():
         'track': '01',
     }
     path = build_target_path(meta, is_singleton=False, artist_canonical='周杰伦')
-    # 目录名用 canonical，文件名中用 meta['artist']
-    assert path == '周杰伦/2001-范特西/01-简单爱-Jay Chou-范特西'
+    # 目录名用 canonical，文件名中也用 canonical（专辑歌曲统一用专辑歌手）
+    assert path == '周杰伦/2001-范特西/01-简单爱-周杰伦-范特西'
+
+
+def test_build_target_path_feat_artist():
+    """专辑中嘉宾歌曲：实唱歌手与专辑歌手不同时追加到文件名末尾"""
+    meta = {
+        'title_display': '彩虹',
+        'artist': '江语晨',
+        'album': '不能说的秘密',
+        'year': '2007',
+        'track': '05',
+        'dir_artist': '周杰伦',
+    }
+    path = build_target_path(meta, is_singleton=False, artist_canonical='周杰伦-Jay Chou')
+    # 目录用专辑歌手，文件名中专辑歌手+实唱歌手
+    assert path == '周杰伦-Jay Chou/2007-不能说的秘密/05-彩虹-周杰伦-Jay Chou-不能说的秘密-江语晨'
+
+
+def test_build_target_path_same_artist_no_feat():
+    """专辑中歌手与专辑歌手相同时不追加实唱歌手"""
+    meta = {
+        'title_display': '简单爱',
+        'artist': '周杰伦',
+        'album': '范特西',
+        'year': '2001',
+        'track': '01',
+        'dir_artist': '周杰伦',
+    }
+    path = build_target_path(meta, is_singleton=False, artist_canonical='周杰伦-Jay Chou')
+    # 歌手相同，不追加实唱歌手
+    assert path == '周杰伦-Jay Chou/2001-范特西/01-简单爱-周杰伦-Jay Chou-范特西'
 
 
 def test_build_target_path_sanitizes_illegal_chars():
