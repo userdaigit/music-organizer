@@ -39,7 +39,7 @@ from collections import defaultdict
 from datetime import datetime
 
 # 本地模块
-from encoding_fix import fix_tags_encoding, normalize_text, is_garbled
+from encoding_fix import fix_tags_encoding, normalize_text, is_garbled, try_fix_encoding
 from artist_normalizer import ArtistNormalizer, detect_language, similarity
 from scraper import MusicBrainzScraper
 from kugou_scraper import KugouScraper
@@ -273,10 +273,14 @@ def extract_metadata(filepath, encoding_fixed_count=None):
 # 文件名清理
 # ============================================================
 def sanitize(name):
-    """清理文件名中的非法字符"""
+    """清理文件名中的非法字符，修复乱码，繁体转简体"""
     if not name:
         return '未知'
+    # 先修复乱码（Latin-1 误读的 GBK/BIG5）
+    name, _ = try_fix_encoding(name)
+    # NFC 规范化 + 繁体转简体 + 清理控制字符
     name = normalize_text(name)
+    # 过滤文件名非法字符
     name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', name)
     name = re.sub(r'\s+', ' ', name).strip()
     name = name.strip('. ')

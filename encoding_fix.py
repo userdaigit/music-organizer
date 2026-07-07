@@ -16,12 +16,39 @@
 import re
 import unicodedata
 
-
 # 常见中文编码（按优先级尝试）
 CHINESE_ENCODINGS = ['gb18030', 'gbk', 'gb2312', 'big5']
 
 # 乱码特征字符（UTF-8 误读 GBK 时常见的替换字符）
 GARBLED_INDICATORS = re.compile(r'[\ufffd\x80-\xff\u00c0-\u00ff]')
+
+# 繁简转换器（延迟初始化，避免未安装 opencc 时报错）
+_t2s_converter = None
+
+
+def get_t2s_converter():
+    """获取繁简转换器（延迟初始化）"""
+    global _t2s_converter
+    if _t2s_converter is None:
+        try:
+            from opencc import OpenCC
+            _t2s_converter = OpenCC('t2s')
+        except ImportError:
+            _t2s_converter = False  # 标记为不可用
+    return _t2s_converter
+
+
+def convert_t2s(text):
+    """
+    繁体中文转简体中文。
+    如果 opencc 未安装，返回原文（不做转换）。
+    """
+    if not text:
+        return text
+    converter = get_t2s_converter()
+    if converter is False:
+        return text
+    return converter.convert(text)
 
 
 def is_garbled(text):
@@ -153,7 +180,9 @@ def fix_tags_encoding(tags):
 
 
 def normalize_text(text):
-    """统一文本编码为 NFC Unicode 规范化形式"""
+    """
+    统一文本编码：NFC 规范化 + 繁体转简体 + 清理控制字符。
+    """
     if not text:
         return text
     # Unicode NFC 规范化（合并组合字符）
@@ -162,4 +191,6 @@ def normalize_text(text):
     text = text.replace('\ufeff', '')
     # 去除控制字符（保留换行和制表符）
     text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', text)
+    # 繁体转简体
+    text = convert_t2s(text)
     return text.strip()
