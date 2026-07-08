@@ -242,6 +242,25 @@ def test_parse_filename_underscore_separator(tmp_path):
     assert result['title'] == '简单爱'
 
 
+def test_parse_filename_underscore_two_parts(tmp_path):
+    """下划线分隔的两段式文件名：歌手_歌曲名"""
+    f = tmp_path / "简单爱_周杰伦.mp3"
+    result = parse_filename(f)
+    assert result['track'] == ''
+    assert result['artist'] == '简单爱'
+    assert result['title'] == '周杰伦'
+
+
+def test_parse_filename_underscore_three_parts(tmp_path):
+    """下划线分隔的三段式文件名：歌手_专辑_歌曲名"""
+    f = tmp_path / "周杰伦_范特西_简单爱.flac"
+    result = parse_filename(f)
+    assert result['track'] == ''
+    assert result['artist'] == '周杰伦'
+    assert result['album'] == '范特西'
+    assert result['title'] == '简单爱'
+
+
 def test_parse_filename_flac_extension(tmp_path):
     """FLAC 扩展名文件"""
     f = tmp_path / "02 - 周杰伦-范特西-东风破.flac"

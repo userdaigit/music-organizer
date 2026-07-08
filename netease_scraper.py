@@ -50,10 +50,10 @@ class NetEaseScraper:
             pass
 
     def _rate_limit(self):
-        """频率限制：每秒最多1次请求"""
+        """频率限制：每秒最多3次请求"""
         elapsed = time.time() - self.last_request_time
-        if elapsed < 1.0:
-            time.sleep(1.0 - elapsed)
+        if elapsed < 0.3:
+            time.sleep(0.3 - elapsed)
         self.last_request_time = time.time()
 
     def _request(self, url, data=None, timeout=10):

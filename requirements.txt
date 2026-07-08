@@ -5,13 +5,15 @@
 # 注意: 部分功能需要额外的系统级依赖（非 pip 安装）:
 #
 # 1. 音频指纹识别 (--fingerprint):
-#    需要 chromaprint (fpcalc) 命令行工具
+#    需要 chromaprint (fpcalc) 命令行工具（系统级包，不在 requirements.txt 中）
 #      Debian/Ubuntu: sudo apt install chromaprint-tools
 #      CentOS/RHEL:   sudo yum install chromaprint-tools
 #      macOS:         brew install chromaprint
 #      Windows:       下载 fpcalc.exe 并加入 PATH
 #                    https://github.com/acoustid/chromaprint/releases
 #      Docker:        镜像内已预装
+#    注: chromaprint-tools 是系统级包（apt/yum/brew），不能通过 pip 安装，
+#        因此不列入本 requirements.txt
 #
 # 2. Shazam 指纹识别 (可选，作为 AcoustID 的补充):
 #    需要 Python >= 3.10 且安装 shazamio
@@ -36,4 +38,7 @@ opencc-python-reimplemented>=0.1.7
 pyacoustid>=1.2.0        # AcoustID 指纹识别
 
 # Shazam 指纹识别（可选，需要 Python >= 3.10）
+# 注意: shazamio 包含 Rust 扩展，安装需要 Rust 编译器；
+#       ARM 设备（如 NAS、树莓派）可能无法直接通过 pip 安装；
+#       如安装失败可跳过，不影响 AcoustID 指纹识别功能
 # shazamio>=0.1.0         # 取消注释以启用 Shazam 识别

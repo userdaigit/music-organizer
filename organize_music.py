@@ -215,7 +215,22 @@ def parse_filename(filepath):
             result['artist'] = dot_parts[0]
             result['title'] = dot_parts[1]
         else:
-            result['title'] = parts[0]
+            # 尝试按下划线分割（如 "简单爱_周杰伦"）
+            us_parts = [p.strip() for p in stem.split('_') if p.strip()]
+            if len(us_parts) >= 3:
+                if us_parts[0].isdigit() and len(us_parts[0]) <= 3:
+                    result['track'] = us_parts[0]
+                    result['artist'] = us_parts[1]
+                    result['title'] = '_'.join(us_parts[2:])
+                else:
+                    result['artist'] = us_parts[0]
+                    result['album'] = us_parts[1]
+                    result['title'] = '_'.join(us_parts[2:])
+            elif len(us_parts) == 2:
+                result['artist'] = us_parts[0]
+                result['title'] = us_parts[1]
+            else:
+                result['title'] = parts[0]
 
     # 处理文件名本身的乱码
     for key in ['artist', 'album', 'title']:
@@ -1099,9 +1114,11 @@ def organize(source_dir, output_dir, name_map_path,
     artist_mapping = {}
     bar = ProgressBar("规范化歌手", len(all_artists), unit="位")
     for i, artist in enumerate(all_artists):
+        bar.set_description(f"规范化: {artist}")
         result = artist_normalizer.normalize_one(artist)
         artist_mapping[artist] = result
         bar.update(i + 1)
+    bar.set_description("规范化歌手")  # 恢复默认描述
     bar.finish()
 
     # 用网易云音乐补充未识别的歌手别名
@@ -1135,7 +1152,7 @@ def organize(source_dir, output_dir, name_map_path,
                         if canonical != artist:
                             artist_mapping[artist] = canonical
                             netease_enriched += 1
-                except Exception:
+                except (OSError, ValueError, KeyError, TypeError):
                     pass
                 bar.update(i + 1)
             bar.finish()
@@ -1237,11 +1254,15 @@ def organize(source_dir, output_dir, name_map_path,
                 all_results = {}  # scraper_name -> [(orig_i, enriched_meta), ...]
                 # 实时计数器：记录每个刮削器已处理的歌曲数（用于进度条）
                 processed_count = {}  # scraper_name -> int
+                # 中断标志：用于 Ctrl+C 优雅中断
+                scrape_interrupted = threading.Event()
 
                 def _run_scraper(scraper_obj, name, songs):
                     """单刮削器线程：串行处理所有歌曲，实时更新结果"""
                     local_results = []
                     for idx, (orig_i, meta) in enumerate(songs):
+                        if scrape_interrupted.is_set():
+                            break
                         try:
                             if name == 'musicbrainz':
                                 enriched, changed = scraper_obj.enrich_metadata(
@@ -1272,21 +1293,36 @@ def organize(source_dir, output_dir, name_map_path,
                     t.start()
                     threads.append(t)
 
-                # 等所有线程完成，进度条基于所有刮削器的平均进度
+                # 等所有线程完成，进度条基于最快刮削器的进度
+                # （只需要任一源成功即可，所以显示最快进度更合理）
                 num_scrapers = len(available_scrapers)
                 bar = ProgressBar("刮削补全  ", len(need_scrape_items), unit="首")
                 processed = 0
-                while any(t.is_alive() for t in threads):
-                    time.sleep(0.5)
-                    # 基于所有刮削器的平均已处理数计算进度
-                    total_processed_all = 0
-                    with results_lock:
-                        for name in available_scrapers:
-                            total_processed_all += processed_count.get(name, 0)
-                    avg_processed = total_processed_all // num_scrapers if num_scrapers > 0 else 0
-                    if avg_processed > processed:
-                        processed = avg_processed
-                        bar.update(min(processed, len(need_scrape_items)))
+                log_interval = max(50, len(need_scrape_items) // 10)  # 每50首或10%打印一次
+                logged_milestones = {}  # scraper_name -> last_logged_count
+                try:
+                    while any(t.is_alive() for t in threads):
+                        time.sleep(0.5)
+                        # 基于最快刮削器的已处理数计算进度（取 max 而非平均）
+                        max_processed = 0
+                        with results_lock:
+                            for name in available_scrapers:
+                                cnt = processed_count.get(name, 0)
+                                max_processed = max(max_processed, cnt)
+                                # 每隔 log_interval 首打印各源独立进度（只在新里程碑时打印）
+                                last_logged = logged_milestones.get(name, 0)
+                                if cnt >= last_logged + log_interval:
+                                    logged_milestones[name] = (cnt // log_interval) * log_interval
+                                    print(f"\n  [刮削进度] {name}: {cnt}/{len(need_scrape_items)}")
+                        if max_processed > processed:
+                            processed = max_processed
+                            bar.update(min(processed, len(need_scrape_items)))
+                except KeyboardInterrupt:
+                    print(f"\n  [中断] 收到 Ctrl+C，正在停止刮削线程...")
+                    scrape_interrupted.set()
+                    # 等待线程结束（最多3秒）
+                    for t in threads:
+                        t.join(timeout=3.0)
                 bar.finish()
 
                 # 合并结果：取第一个刮削器返回的结果（网易云优先，其次MB，最后酷狗）
@@ -1311,6 +1347,8 @@ def organize(source_dir, output_dir, name_map_path,
                 print(f"  网易云音乐补全: {scraped_netease_count} 首")
                 print(f"  MusicBrainz 补全: {scraped_mb_count} 首")
                 print(f"  酷狗音乐补全: {scraped_kugou_count} 首")
+                if scrape_interrupted.is_set():
+                    print(f"  [注意] 刮削被用户中断，已完成的 {len(merged)} 首结果已应用")
             else:
                 print(f"  刮削: 无可用刮削器")
         else:
