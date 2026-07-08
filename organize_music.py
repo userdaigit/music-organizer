@@ -250,20 +250,23 @@ def infer_from_directory(filepath):
     从目录结构推断歌手和专辑。
     支持任意层级，智能识别 歌手/专辑 结构。
     跳过非歌手/非专辑的中间目录（Single/EP/Albums/CD1 等）。
+    当所有中间目录都被跳过时，从更远的祖先中提取歌手名。
     """
     parents = list(filepath.parents)
     # 需要跳过的目录名（不是歌手名也不是专辑名）
     skip_patterns = re.compile(
         r'^(\d+$|CD\d?$|Disc\s?\d+$|music$|music2$|.*\.trae$|tmp$'
-        r'|Single$|Singles$|EP$|Albums?$|专辑$|合集$|无损合集$'
+        r'|Single$|Singles?$|EP$|Albums?$|专辑$|合集$|无损合集$'
         r'|演唱会$|演唱会专辑$|Live$|Concert$'
         r'|vol\.?\d*$|volume\s*\d*$'
-        r'|.*Discography.*$|.*Collection.*$|.*Ultimate.*$|.*Best$'
         r'| FLAC$|MP3$|WAV$|APE$'
         r'| BONUS$|Bonus$|EXTRA$|Extra$'
-        r'|未知歌手$|未知$|Unknown Artist$)',
+        r'|未知歌手$|未知$|Unknown Artist$'
+        r'|无损音乐专辑$|无损专辑$)',
         re.IGNORECASE
     )
+
+    # 模式1: 跳过只包含skip目录的中间层，识别 歌手/专辑 结构
     valid_parents = []
     for p in parents:
         name = p.name
@@ -280,23 +283,58 @@ def infer_from_directory(filepath):
         album_dir = valid_parents[0]   # 父目录
         result['artist'] = _extract_chinese_artist(artist_dir)
         result['album'] = clean_album_dir_name(album_dir)
-        # 从专辑目录名提取年份: "1999-吻别" → year=1999, album=吻别
         year = _extract_year_from_string(album_dir)
         if year:
             result['year'] = year
-        # 如果专辑目录没年份，尝试从歌手目录提取
         if not result.get('year'):
             year = _extract_year_from_string(artist_dir)
             if year:
                 result['year'] = year
     elif len(valid_parents) == 1:
-        result['artist'] = _extract_chinese_artist(valid_parents[0])  # 父目录
-        # 也尝试从父目录提取年份
-        year = _extract_year_from_string(valid_parents[0])
-        if year:
-            result['year'] = year
+        # 只有一个有效父目录
+        # 检查它是否像歌手名（非纯数字开头、不含"-"后面的歌名特征）
+        maybe_artist = valid_parents[0]
+        is_number_album = re.match(r'^\d{1,3}\s*[-._]\s*', maybe_artist)
+        if not is_number_album:
+            # 看起来像歌手名
+            result['artist'] = _extract_chinese_artist(maybe_artist)
+            year = _extract_year_from_string(maybe_artist)
+            if year:
+                result['year'] = year
+        else:
+            # 是数字开头的专辑目录（如 "17 - New Divide"）
+            # 从更远的祖先中找歌手名
+            fallback_artist = _find_artist_from_ancestors(parents, skip_patterns)
+            if fallback_artist:
+                result['artist'] = fallback_artist
+            album_dir = maybe_artist
+            result['album'] = clean_album_dir_name(album_dir)
+            year = _extract_year_from_string(album_dir)
+            if year:
+                result['year'] = year
 
     return result
+
+
+def _find_artist_from_ancestors(all_parents, skip_patterns):
+    """
+    在所有祖先目录中查找歌手名。
+    策略：从近到远扫描，跳过skip目录和数字开头目录，
+    找到第一个看起来像歌手名的目录。
+    """
+    for p in all_parents:
+        name = p.name
+        if not name or skip_patterns.match(name):
+            continue
+        # 跳过数字开头的目录（通常是专辑排序号）
+        if re.match(r'^\d{1,3}\s*[-._]\s*', name):
+            continue
+        # 检查是否包含 CJK 字符或合理的英文名（至少2个字母，不含纯数字）
+        has_cjk = any(0x4e00 <= ord(ch) <= 0x9fff for ch in name)
+        has_letters = any(ch.isalpha() for ch in name)
+        if (has_cjk or has_letters) and len(name) >= 2:
+            return _extract_chinese_artist(name)
+    return None
 
 
 def _extract_chinese_artist(dirname):
@@ -316,6 +354,13 @@ def _extract_chinese_artist(dirname):
     # 去除"专辑无损合集""无损合集""精选集"等后缀
     name = re.sub(r'(专辑)?(无损)?合集.*$', '', name)
     name = re.sub(r'(精选集|精选|作品集|全集|大碟).*$', '', name)
+
+    # 按 "+" 分割取第一段（如 "张学友.未收录单曲+合唱歌曲" -> "张学友.未收录单曲"）
+    if '+' in name:
+        name = name.split('+')[0].strip()
+
+    # 按 "未收录" 等关键词截断（如 "张学友.未收录单曲" -> "张学友"）
+    name = re.sub(r'[.\-_\s](未收录|合集|精选|杂锦|混音|Demo|Remix).*$', '', name)
 
     # 去除开头的年份前缀: "2010.张学友.xxx" -> "张学友.xxx"
     name = re.sub(r'^\d{4}[.\-_]\s*', '', name)

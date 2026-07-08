@@ -67,14 +67,14 @@ def validate_api_key(api_key=None, timeout=5):
     """
     key = api_key or ACOUSTID_API_KEY
     try:
-        # 发送一个最简单的 lookup 请求（不带 fingerprint）
-        # 有效 KEY: 返回 {"status": "ok", "results": []}
-        # 无效 KEY: 返回 {"status": "error", "error": {"message": "invalid API key", "code": 6}}
+        # 发送一个真实的 lookup 请求，使用 AcoustID 官方的测试指纹
+        # （来自 acoustid-python 库的示例）
+        test_fingerprint = 'AQADtQmQkJCWkCqWRIW+CRQ-JuKXHg-aF0mMJQsuDNe8FkuPNh4pEt_Ck0ePHqWEL0e0Hz--CXoiJRJqDRwiXo4dzHh3o2JxJb9wMJRxHn8KN0dxXIdzNCqYX4hyFj-FH0-OfkSPaCp8JUqRLnxiLUauH5mFXThxJkJ4NMWL4zh_XHgg9EJyE48pHsWfHUouFqGJoAl0a0aOcs_xXCFxHNqPo0cf6DleXQqOhk_x2oz4o0SfBd8yE0SuCq2I40d-6Aq5XoGSP0mCK1mUL4ceI8eXHq0-vEoMn-EUPPzhuNAf0o1z0Cz_-EH1XEqeLh8jR7z0WBn8o0_-Csc1o0MWjH4xf9DguNRqf6DhuBM6PH02PR8mJF0MJUaUY42RP9-qo3hR4s-1o8mPNEf4o3mP6wiUYzqG4zueoeaPmEe0o3iPDzmh6BqU42hzJd_xGkqPJ0e0o0J-aDmRTLiCa40fVD-e4iTw...'
         params = urllib.parse.urlencode({
             'format': 'json',
             'client': key,
-            'duration': 0,
-            'fingerprint': '',
+            'duration': 300,
+            'fingerprint': test_fingerprint,
         })
         url = f"{ACOUSTID_BASE_URL}/lookup?{params}"
         req = urllib.request.Request(url, headers={'User-Agent': 'MusicOrganizer/1.2.0'})
@@ -84,9 +84,11 @@ def validate_api_key(api_key=None, timeout=5):
         if data.get('status') == 'ok':
             return True
         elif data.get('status') == 'error':
-            error_msg = data.get('error', {}).get('message', '')
-            if 'invalid' in error_msg.lower() and 'key' in error_msg.lower():
-                return False
+            return False
+        return None
+    except urllib.error.HTTPError as e:
+        # HTTP 400/401/403 = KEY 无效或请求格式错误
+        if e.code in (400, 401, 403):
             return False
         return None
     except Exception:
