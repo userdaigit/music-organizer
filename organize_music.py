@@ -724,7 +724,7 @@ def build_target_path(meta, is_singleton, artist_canonical):
     if feat_artist and feat_artist != artist_short:
         filename += f"-{feat_artist}"
 
-    return f"{artist_dir}/{album_part}/{filename}"
+    return str(Path(artist_dir) / album_part / filename)
 
 
 # ============================================================
@@ -1518,7 +1518,11 @@ def organize(source_dir, output_dir, name_map_path,
                 continue
 
             target_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(meta['source_path'], str(target_path))
+            try:
+                shutil.copy2(meta['source_path'], str(target_path))
+            except OSError:
+                # 跨文件系统时 copy2 可能因元数据保留失败，回退到 copy
+                shutil.copy(meta['source_path'], str(target_path))
             copied += 1
 
             # 补充标签到新文件
@@ -1651,9 +1655,9 @@ if __name__ == '__main__':
 注意: /music 和 /music2 仅为示例路径，请替换为你的实际路径。
         """
     )
-    parser.add_argument('--source', '-s', default='/music',
+    parser.add_argument('--source', '-s', default='./music',
                         help='源音乐目录（请替换为你的实际路径）')
-    parser.add_argument('--output', '-o', default='/music2',
+    parser.add_argument('--output', '-o', default='./music2',
                         help='输出目录（请替换为你的实际路径，不存在时自动创建）')
     parser.add_argument('--name-map', '-m', default='name_map.json', help='中英文名映射JSON')
     parser.add_argument('--dry-run', '-n', action='store_true', help='试运行模式')

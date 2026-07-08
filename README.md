@@ -1,312 +1,198 @@
-# Music Organizer - NAS 音乐库一键整理工具
+# 音乐库一键整理工具 (Music Organizer)
 
-> 飞牛NAS / 群晖 / 威联通等 NAS 音乐文件自动化整理工具
+自动化整理本地音乐库：重命名文件、归类目录、补全元数据、去除重复。
 
-## 功能特点
+## 功能特性
 
-- **自动整理文件夹结构**：按 `歌手/年份-专辑/歌曲` 层级自动重排
-- **feat. 合作方识别**：自动拆分 `歌手A feat. 歌手B` 到标题字段
-- **歌手名规范化**：自动合并同一歌手的不同写法（如"周杰伦"和"Jay Chou"）
-- **编码修复**：自动检测并修复 GBK/GB18030/BIG5 乱码标签
-- **网络刮削**：多刮削源链式调用（MusicBrainz → 酷狗音乐 → AcoustID 指纹），补全缺失的专辑/年份信息
-- **音频指纹识别**：信息全缺时通过 AcoustID 识别歌曲
-- **序号保留**：保留原专辑中的轨道序号（如 `01-`）
-- **智能分组**：3首以上保留专辑，1-2首降级为单曲（文件名保留专辑名）
-- **去重校验**：按文件哈希去重，避免重复文件
-- **原文件不动**：整理结果复制到新目录，不修改原始文件
-
-## 目标目录结构
-
-```
-/music2/
-├── 周杰伦-Jay Chou/
-│   ├── 2001-范特西/
-│   │   ├── 01-双截棍-周杰伦-范特西.mp3
-│   │   ├── 02-简单爱-周杰伦-范特西.mp3
-│   │   └── 03-开不了口-周杰伦-范特西.mp3
-│   └── 其他/
-│       └── 等你下课 feat. 林俊杰-周杰伦-范特西.mp3
-├── Adele/
-│   └── 其他/
-│       └── Hello-Adele-25.flac
-└── 林俊杰/
-    └── 其他/
-        └── 江南-林俊杰-第二天堂.mp3
-```
+- **自动分类**: 歌手/专辑/歌曲 三级目录结构
+- **标签补全**: 从文件名、目录结构提取歌手/专辑/年份
+- **网络刮削**: 网易云音乐 / MusicBrainz / 酷狗音乐 三源并行补全
+- **音频指纹**: AcoustID (chromaprint) 识别未知歌曲
+- **歌手归一**: 繁简转换、英文名映射、多别名合并
+- **去重**: 按文件大小分组 + 哈希精确比对
+- **跨平台**: Windows / Linux / macOS / 群晖 DSM / 飞牛 NAS
 
 ## 快速开始
 
-> **路径说明**：以下命令中的 `/music`（源目录）和 `/music2`（输出目录）仅为示例路径，实际使用时请替换为你自己的路径。原文件不会被修改，整理结果会复制到输出目录。
-
-### 方式一：Python 脚本（推荐 NAS / Linux 用户）
-
-#### 安装依赖（三选一）
-
-**方案 A：uv 安装（推荐，速度最快）**
-
-[uv](https://github.com/astral-sh/uv) 是用 Rust 编写的新一代 Python 包管理器，比 pip 快 10-100 倍，自带环境管理：
-
-```bash
-# 1. 安装 uv
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# 2. 创建虚拟环境并安装依赖
-cd /path/to/music-organizer
-uv venv venv
-source venv/bin/activate
-uv pip install -r requirements.txt
-
-# 3. 后续使用前激活环境
-source venv/bin/activate
-```
-
-**方案 B：pip + venv（经典方式）**
-
-```bash
-# 1. 创建虚拟环境
-cd /path/to/music-organizer
-python3 -m venv venv
-source venv/bin/activate
-
-# 2. 安装依赖
-pip3 install -r requirements.txt
-
-# 3. 后续使用前激活环境
-source venv/bin/activate
-```
-
-> **提示**：Debian 12 / 飞牛NAS / Ubuntu 23.04+ 等系统直接 `pip install` 会报 `externally-managed-environment` 错误（PEP 668），使用虚拟环境（venv 或 uv）可避免此问题。
-
-**方案 C：apt 安装（无需虚拟环境，但版本可能较旧）**
-
-```bash
-sudo apt install python3-mutagen python3-pyacoustid
-```
-
-#### 运行
-
-```bash
-# 试运行（不复制，仅预览效果）
-python3 organize_music.py -s /music -o /music2 --dry-run
-
-# 正式整理
-python3 organize_music.py -s /music -o /music2 --write-tags
-
-# 全功能（含网络刮削 + 音频指纹）
-python3 organize_music.py -s /music -o /music2 --write-tags --scrape --fingerprint
-```
-
-### 方式二：Windows 本地使用
-
-Windows 没有 PEP 668 限制，可直接用 pip 安装：
+### Windows
 
 ```powershell
-# 1. 安装依赖
-pip install -r requirements.txt
-
-# 2. 试运行（不复制，仅预览效果）
-python organize_music.py -s "D:\Music" -o "D:\Music2" --dry-run
-
-# 3. 正式整理
-python organize_music.py -s "D:\Music" -o "D:\Music2" --write-tags
-
-# 4. 全功能
-python organize_music.py -s "D:\Music" -o "D:\Music2" --write-tags --scrape --fingerprint
+.\organize.ps1
+# 或指定路径
+.\organize.ps1 -Source "D:\Music" -Output "D:\Music2"
+# 试运行
+.\organize.ps1 --dry-run
+# 含网络刮削
+.\organize.ps1 --scrape
 ```
 
-> **注意**：
-> - Windows 上用 `python` 而非 `python3`
-> - 路径可用反斜杠 `D:\Music` 或正斜杠 `D:/Music`，建议加引号避免空格问题
-> - 也可使用 `organize.ps1` 启动脚本：`.\organize.ps1 -Source "D:\Music" -Output "D:\Music2" --dry-run`（需先 `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`）
-> - `organize.sh` 是 bash 脚本，Windows 下用 `organize.ps1` 代替
-> - 音频指纹功能（`--fingerprint`）需安装 [chromaprint](https://github.com/acoustid/chromaprint/releases)，下载 `fpcalc.exe` 并加入系统 PATH
-
-### 方式三：Docker 部署
+### Linux / macOS / NAS
 
 ```bash
-# 1. 修改 docker-compose.yml 中的路径映射为你的实际路径
-# 2. 试运行
-docker compose run --rm music-organizer --dry-run
-
-# 3. 正式运行
-docker compose run --rm music-organizer
+chmod +x organize.sh
+./organize.sh
+# 指定路径
+SOURCE_DIR=/your/music OUTPUT_DIR=/your/output ./organize.sh
+# 试运行
+./organize.sh --dry-run
+# 含网络刮削
+./organize.sh --scrape
 ```
+
+### Docker (推荐群晖/飞牛等 NAS)
+
+```bash
+# 1. 修改 docker-compose.yml 中的 volumes 路径
+# 2. 构建并运行
+docker-compose up --rm
+# 附加参数
+docker-compose run --rm music-organizer --scrape --fingerprint
+```
+
+## 依赖安装
+
+### Python 依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+### 系统级依赖（音频指纹识别）
+
+音频指纹功能需要 chromaprint (`fpcalc`) 命令行工具：
+
+| 平台 | 安装命令 |
+|------|----------|
+| Debian/Ubuntu | `sudo apt install chromaprint-tools` |
+| CentOS/RHEL | `sudo yum install chromaprint-tools` |
+| macOS | `brew install chromaprint` |
+| Windows | 下载 `fpcalc.exe` 并加入 PATH |
+| Docker | 镜像内已预装 |
+
+下载地址: https://github.com/acoustid/chromaprint/releases
+
+## AcoustID API Key 配置
+
+音频指纹识别需要免费的 AcoustID API Key。
+
+**申请**: 访问 https://acoustid.org/api-key 申请免费 KEY
+
+**配置方式（二选一）**:
+
+### 方式1: 环境变量（推荐，不修改代码）
+
+```bash
+# Linux / macOS / NAS
+export ACOUSTID_API_KEY="你的KEY"
+
+# Windows
+set ACOUSTID_API_KEY=你的KEY
+
+# Docker (docker-compose.yml)
+environment:
+  - ACOUSTID_API_KEY=你的KEY
+```
+
+### 方式2: 修改源码
+
+打开 `fingerprint.py`，找到第 42 行：
+
+```python
+# >>> 第 42 行: 将 YOUR_ACOUSTID_API_KEY_HERE 替换为你的 AcoustID API Key <<<
+DEFAULT_API_KEY = 'YOUR_ACOUSTID_API_KEY_HERE'
+```
+
+将 `YOUR_ACOUSTID_API_KEY_HERE` 替换为你的 KEY。
+
+> **注意**: 请勿将你的真实 KEY 提交到 Git 仓库。建议使用环境变量方式。
 
 ## 命令行参数
 
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `-s, --source` | 源音乐目录（**请替换为你的实际路径**） | `/music` |
-| `-o, --output` | 输出目录（**请替换为你的实际路径**） | `/music2` |
-| `-m, --name-map` | 中英文名映射 JSON 文件 | `name_map.json` |
-| `-n, --dry-run` | 试运行模式（不复制） | 否 |
-| `-w, --write-tags` | 补充缺失标签到新文件 | 否 |
-| `--scrape` | 启用 MusicBrainz 网络刮削 | 否 |
-| `--fingerprint` | 启用音频指纹识别 | 否 |
-| `--no-network` | 禁用所有网络功能 | 否 |
-
-> **提示**：`-s` 和 `-o` 的默认值 `/music`、`/music2` 仅为示例。请务必替换为你实际的源目录和输出目录路径，例如 `-s "/voll/1000/Music" -o "/voll/1000/Music2"`（NAS）或 `-s "D:\Music" -o "D:\Music2"`（Windows）。
-
-## 依赖及许可证
-
-| 依赖 | 用途 | 许可证 |
-|------|------|--------|
-| [mutagen](https://github.com/quodlibet/mutagen) | 音频标签读写 | GPLv2 |
-| [pyacoustid](https://github.com/beetbox/pyacoustid) | 音频指纹识别 | MIT |
-| [chromaprint](https://acoustid.org/chromaprint) | 指纹算法库 | LGPLv2.1+ |
-| [MusicBrainz API](https://musicbrainz.org/doc/MusicBrainz_API) | 元数据查询 | CC0 (公共领域) |
-| [AcoustID API](https://acoustid.org/webservice) | 指纹查询服务 | 免费使用 |
-
-> **注意**：因依赖 mutagen (GPLv2)，本项目必须以 GPLv2 协议开源。
-
-## 命名规则
-
-| 类型 | 规则 | 示例 |
-|------|------|------|
-| 歌手文件夹 | 中文名-英文名（按需） | `周杰伦-Jay Chou` |
-| 专辑文件夹 | 年份-专辑名 | `2001-范特西` |
-| 专辑歌曲 | 序号-歌曲名-歌手-专辑 | `01-双截棍-周杰伦-范特西.mp3` |
-| 零散歌曲 | 序号-歌曲名-歌手-专辑 | `等你下课-周杰伦-范特西.mp3` |
-
-## 配置文件
-
-### name_map.json（歌手中英文名映射）
-
-首次运行会生成 `artists_found.txt` 列出所有歌手。按需补充映射表：
-
-```json
-{
-  "周杰伦": "周杰伦-Jay Chou",
-  "Jay Chou": "周杰伦-Jay Chou",
-  "Adele": "Adele"
-}
-```
-
-### 歌手名规范化策略
-
-- 中国歌手只有中文名的 → 只用中文名
-- 外国歌手只用英文名 → 只用英文名
-- 其他语言歌手 → 用原语言名
-- 同时有中英文名 → 用"中文名-英文名"
-
-## 外部 API 配置（重要）
-
-本项目可选使用两个免费的外部 API 来增强功能。不配置也能正常使用基础整理功能，但网络刮削和音频指纹识别需要配置后才能工作。
-
-### 1. MusicBrainz API（网络刮削功能，`--scrape` 参数）
-
-MusicBrainz 是一个开放的公共音乐元数据库，本项目通过其 API 查询歌手别名、专辑信息、发行年份等 [$TRAE_REF](https://musicbrainz.org/doc/MusicBrainz_API)。
-
-**使用要求**（参考 [$TRAE_REF](https://musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting)）：
-
-| 要求 | 说明 |
+| 参数 | 说明 |
 |------|------|
-| 无需 API Key | MusicBrainz API 免费使用，无需注册 |
-| 必须设置 User-Agent | 每个请求必须携带含联系方式的应用标识，否则会被限流甚至封禁 |
-| 限流：每秒1次请求 | 本项目已内置1.1秒间隔的自动限流，无需手动控制 |
-| 非商业用途免费 | 商业用途需购买商用许可 |
+| `-s / --source` | 源音乐目录（默认: `./music`） |
+| `-o / --output` | 输出目录（默认: `./music2`） |
+| `-m / --name-map` | 歌手名映射文件（默认: `name_map.json`） |
+| `--dry-run` | 试运行，不复制文件 |
+| `--write-tags` | 将整理后的元数据写入音频标签 |
+| `--scrape` | 启用网络刮削补全元数据 |
+| `--fingerprint` | 启用音频指纹识别 |
+| `--clear-cache` | 清除刮削缓存 |
+| `--no-scrape` | 跳过网络刮削 |
+| `--version` | 显示版本信息 |
 
-**User-Agent 修改位置**：
+## 平台部署指南
 
-版本号和 User-Agent 已集中管理在 `version.py` 文件中，所有模块统一引用。如需修改为你自己的仓库地址：
+### 飞牛 NAS / 通用 Linux NAS
 
-- 文件 `version.py`：
-  ```python
-  __version__ = "1.1.0"
-  REPO_URL = "https://github.com/userdaigit/music-organizer"
-  MB_USER_AGENT = f"MusicOrganizer/{__version__} ({REPO_URL})"
-  ```
-
-修改 `version.py` 即可，`artist_normalizer.py` 和 `scraper.py` 会自动引用。
-
-> **为什么需要改？** MusicBrainz 要求 User-Agent 中包含开发者联系方式（URL 或邮箱），以便在应用异常时联系开发者。不含有效联系方式可能被识别为"匿名"应用而遭限流（503错误）[$TRAE_REF](https://musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting)。
-
-### 2. AcoustID API（音频指纹识别功能，`--fingerprint` 参数）
-
-AcoustID 是基于音频指纹的歌曲识别服务。当歌曲文件名和标签都完全缺失信息时，通过音频内容本身识别歌曲 [$TRAE_REF](https://acoustid.org/webservice)。
-
-**使用要求**：
-
-| 要求 | 说明 |
-|------|------|
-| 需要 API Key | 必须自行申请，免费 |
-| 限流：每秒3次请求 | 本项目已内置自动限流 |
-| 需要安装 chromaprint | 系统需安装 `fpcalc` 工具（Docker镜像已包含） |
-
-**API Key 申请步骤**：
-
-1. 访问 [acoustid.org/api-key](https://acoustid.org/api-key)
-2. 填写应用名称和描述（可随意填写，如"个人音乐整理"）
-3. 提交后立即获得 API Key（一串字母数字，如 `abc123def456`）
-
-**API Key 配置位置**（三选一）：
-
-**方式 A：环境变量（推荐，Docker 和脚本通用）**
 ```bash
-# 脚本运行时设置
-export ACOUSTID_API_KEY="你的API Key"
-python3 organize_music.py -s /music -o /music2 --fingerprint
-
-# Docker 运行时设置
-docker compose run --rm -e ACOUSTID_API_KEY="你的API Key" music-organizer --fingerprint
+cd /vol1/1000/Downloads/music-organizer
+git pull
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+sudo apt install chromaprint-tools  # 指纹识别（可选）
+python3 organize_music.py -s /vol1/1000/music -o /vol1/1000/music2 --write-tags --scrape
 ```
 
-**方式 B：docker-compose.yml 文件**
-```yaml
-environment:
-  - ACOUSTID_API_KEY=你的API Key    # 修改第 18 行，替换默认值
+### 群晖 DSM
+
+群晖 DSM 无原生包管理器，**强烈建议使用 Docker 部署**：
+
+1. 在 DSM 的 Container Manager (Docker) 中导入本项目
+2. 修改 `docker-compose.yml` 中的 volumes 路径
+3. 可选: 设置 `ACOUSTID_API_KEY` 环境变量
+4. ARM 架构设备需确认镜像支持
+
+如需原生运行（不推荐）：
+1. 在 DSM 套件中心安装 Python3
+2. 通过 SSH 安装依赖
+3. 注意 DSM 的 Python 版本可能较低
+
+### macOS
+
+```bash
+brew install python3 chromaprint
+git clone <repo-url>
+cd music-organizer/github-release
+pip3 install -r requirements.txt
+./organize.sh
 ```
 
-**方式 C：直接修改 fingerprint.py（不推荐，会暴露在源码中）**
-```python
-# 文件 fingerprint.py 第 26 行
-ACOUSTID_API_KEY = os.environ.get('ACOUSTID_API_KEY', '你的API Key')
+### Windows
+
+1. 安装 Python 3.8+ (勾选 Add to PATH)
+2. 下载 `fpcalc.exe` 并加入 PATH (可选，指纹识别用)
+3. 打开 PowerShell
+4. `pip install -r requirements.txt`
+5. `.\organize.ps1`
+
+## 输出文件
+
+| 文件 | 说明 |
+|------|------|
+| `organize_report.txt` | 整理报告（歌手数/专辑数/歌曲数/去重数等） |
+| `artists_found.txt` | 发现的歌手列表 |
+| `artist_variants.json` | 歌手名变体映射记录 |
+| `netease_cache.json` | 网易云刮削缓存 |
+| `scraper_cache.json` | MusicBrainz 刮削缓存 |
+
+## 技术架构
+
 ```
-
-> **注意**：代码中默认包含一个公开测试 Key `lmv7m8k7Fe`，多人共用会被限流。正式使用请务必替换为自己的 Key。
->
-> **v1.2.0 新增**：启动时自动检测 API KEY 状态。若为默认测试 KEY 或无效 KEY，将提示"未配置API KEY，或API KEY无效，无法使用音频指纹识别"并跳过指纹功能。配置有效 KEY 后自动启用。
-
-### 2.1 酷狗音乐刮削（华语音乐刮削功能，`--scrape` 参数）
-
-v1.2.0 新增酷狗音乐搜索接口作为华语音乐刮削源，弥补 MusicBrainz 对华语音乐覆盖不足。
-
-**特点**：
-- 无需 API KEY，无需认证
-- 仅获取元数据（歌手、专辑名），不下载音乐
-- 对华语音乐覆盖较好
-
-**刮削顺序**：MusicBrainz → 酷狗音乐 → AcoustID 指纹。任一源获取到有效信息即停止。
-
-> **风险提示**：酷狗音乐搜索接口为非官方接口，可能随时失效或变更。接口失效时自动降级，不影响其他功能。
-
-> **关于网易云/QQ音乐**：网易云音乐主要非官方 API 项目（Binaryify/NeteaseCloudMusicApi）已因版权删库停更；QQ音乐仅有逆向工程项目，无稳定公开 API。两者暂不纳入，待官方公开 API 可用后再考虑。
-
-### 3. chromaprint 安装（音频指纹功能的系统依赖）
-
-音频指纹功能需要系统的 `fpcalc` 工具，安装方式：
-
-| 环境 | 安装命令 |
-|------|----------|
-| Debian/Ubuntu (飞牛NAS/群晖) | `sudo apt install chromaprint-tools` |
-| Docker | Dockerfile 中已自动安装 |
-| macOS | `brew install chromaprint` |
-| Windows | 下载 [chromaprint releases](https://github.com/acoustid/chromaprint/releases) 并添加到 PATH |
-
-不安装 chromaprint 不影响其他功能，仅 `--fingerprint` 参数不可用。
-
-## 限制说明
-
-1. **MusicBrainz 对华语音乐覆盖率有限**：网络刮削对欧美音乐效果好，华语音乐建议先用 [Music Scraper](https://post.m.smzdm.com/p/117413765/) 刮削标签
-2. **"中文名-英文名"无法 100% 全自动**：MusicBrainz 能查到别名的歌手可自动映射，查不到的需手动补充 `name_map.json`
+organize_music.py (主程序)
+├── encoding_fix.py          # 编码修复 + 繁简转换
+├── artist_normalizer.py     # 歌手名归一化
+├── scraper.py               # MusicBrainz 刮削器
+├── netease_scraper.py       # 网易云音乐刮削器
+├── kugou_scraper.py         # 酷狗音乐刮削器
+├── fingerprint.py           # AcoustID 指纹识别
+├── shazam_fingerprint.py    # Shazam 指纹识别（可选）
+├── progress.py              # 进度条
+├── version.py               # 版本信息
+└── name_map.json            # 歌手名映射表
+```
 
 ## License
 
-本项目使用 [GPLv2](LICENSE) 协议开源。
-
-## 致谢
-
-- [mutagen](https://github.com/quodlibet/mutagen) - 音频元数据处理
-- [pyacoustid](https://github.com/beetbox/pyacoustid) - AcoustID Python 绑定
-- [MusicBrainz](https://musicbrainz.org/) - 开放音乐元数据
-- [AcoustID](https://acoustid.org/) - 音频指纹识别服务
+GPLv2

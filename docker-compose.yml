@@ -1,38 +1,36 @@
-# ============================================================
-# 飞牛NAS Docker 部署 - 音乐库整理工具 v1.0
+# docker-compose.yml - 音乐整理工具 Docker 部署配置
 # ============================================================
 # 使用方法:
-#   1. 修改下方 volumes 中的路径为你的飞牛NAS实际路径
-#   2. 在飞牛NAS的 Docker 中创建此 Compose 项目
-#   3. 试运行: docker compose run --rm music-organizer --dry-run
-#   4. 正式运行: docker compose run --rm music-organizer
-#   5. 全功能: docker compose run --rm music-organizer --write-tags --scrape
+#   1. 将 docker-compose.yml 和整个 music-organizer 文件夹放在同一目录
+#   2. 按你的实际路径修改下方 volumes 映射
+#   3. 可选: 设置 ACOUSTID_API_KEY 环境变量启用音频指纹
+#   4. docker-compose up --rm
+#   5. 附加参数: docker-compose run --rm music-organizer --scrape --fingerprint
+#
+# 平台支持:
+#   x86_64 (Intel/AMD): 直接使用
+#   ARM (群晖/树莓派): 需在 Dockerfile FROM 行指定 ARM 架构镜像
 # ============================================================
+
+version: "3.8"
 
 services:
   music-organizer:
-    build: .
+    build: ./github-release
     container_name: music-organizer
-    environment:
-      - TZ=Asia/Shanghai
-      - ACOUSTID_API_KEY=${ACOUSTID_API_KEY:-lmv7m8k7Fe}
+    # 如需限制资源（群晖等低内存设备可取消注释）
+    # mem_limit: 2g
+    # cpus: 2
     volumes:
-      # 源音乐目录（只读挂载，确保原文件不被修改）
-      - /vol1/1000/music:/music:ro
-      # 输出目录（整理后的文件复制到这里）
-      - /vol1/1000/music2:/music2
-      # 配置目录（name_map.json、缓存、报告等）
-      - ./config:/config
-    command:
-      - "--source"
-      - "/music"
-      - "--output"
-      - "/music2"
-      - "--name-map"
-      - "/config/name_map.json"
-      - "--write-tags"
-      # 如需网络刮削，取消下行注释
-      # - "--scrape"
-      # 如需音频指纹识别，取消下行注释
-      # - "--fingerprint"
-    restart: "no"
+      # >>> 修改下方路径为你的实际音乐目录 <<<
+      - /path/to/your/music:/music:ro        # 源音乐目录（只读挂载）
+      - /path/to/your/output:/music2          # 输出目录
+      - ./config:/config                       # 配置目录（name_map.json 等）
+    environment:
+      - LANG=zh_CN.UTF-8
+      - LC_ALL=zh_CN.UTF-8
+      # >>> 可选: 设置 AcoustID API KEY 启用音频指纹识别 <<<
+      # 在 https://acoustid.org/api-key 申请免费 KEY
+      # - ACOUSTID_API_KEY=YOUR_ACOUSTID_API_KEY_HERE
+    # 默认执行整理（不含刮削/指纹），附加参数通过 docker-compose run 传入
+    command: ["--source", "/music", "--output", "/music2", "--name-map", "/config/name_map.json", "--write-tags"]

@@ -24,6 +24,7 @@ wheels/
 venv/
 env/
 ENV/
+.venv/
 
 # IDE
 .idea/
@@ -39,7 +40,9 @@ desktop.ini
 # 运行时生成的文件
 artist_cache.json
 scraper_cache.json
+netease_cache.json
 fingerprint_cache.json
+shazam_cache.json
 organize_report.txt
 artists_found.txt
 artist_variants.json

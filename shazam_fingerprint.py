@@ -113,22 +113,20 @@ def _shazam_recognize(filepath):
                 return None
 
     try:
-        # 尝试获取当前事件循环
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # 如果有运行中的事件循环，创建新任务
+        # Python 3.10+: asyncio.get_event_loop() 在无运行循环时已弃用
+        # 统一使用 asyncio.run()，它自动创建和关闭事件循环
+        try:
+            loop = asyncio.get_running_loop()
+            # 如果有运行中的事件循环，在新线程中运行避免嵌套
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(asyncio.run, _recognize())
                 result = future.result(timeout=30)
                 return _parse_shazam_result(result)
-        else:
-            result = loop.run_until_complete(_recognize())
+        except RuntimeError:
+            # 没有运行中的事件循环，直接 asyncio.run
+            result = asyncio.run(_recognize())
             return _parse_shazam_result(result)
-    except RuntimeError:
-        # 没有事件循环，创建新的
-        result = asyncio.run(_recognize())
-        return _parse_shazam_result(result)
 
 
 def _parse_shazam_result(result):

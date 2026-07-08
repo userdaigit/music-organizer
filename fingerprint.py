@@ -24,19 +24,36 @@ import urllib.request
 import urllib.parse
 
 # AcoustID API Key
-# 需要在 https://acoustid.org/api-key 申请免费的 API Key
-# 这里使用公开的测试 Key，建议替换为自己的
-DEFAULT_API_KEY = 'lmv7m8k7Fe'
+# ==========================================
+# 配置说明（二选一）:
+#
+# 方式1（推荐）: 设置环境变量 ACOUSTID_API_KEY
+#   Linux/macOS: export ACOUSTID_API_KEY="你的KEY"
+#   Windows:     set ACOUSTID_API_KEY=你的KEY
+#   Docker:      在 docker-compose.yml 的 environment 中设置
+#
+# 方式2: 修改下方第 42 行的占位符
+#   在 https://acoustid.org/api-key 申请免费 API Key
+#   将 YOUR_ACOUSTID_API_KEY_HERE 替换为你的 KEY
+#
+# ==========================================
+
+# >>> 第 42 行: 将 YOUR_ACOUSTID_API_KEY_HERE 替换为你的 AcoustID API Key <<<
+DEFAULT_API_KEY = 'YOUR_ACOUSTID_API_KEY_HERE'
 ACOUSTID_API_KEY = os.environ.get('ACOUSTID_API_KEY', DEFAULT_API_KEY)
+
+# 已知的占位符和公开测试KEY，用于检测用户是否未配置
+_PLACEHOLDER_KEY = 'YOUR_ACOUSTID_API_KEY_HERE'
+_KNOWN_TEST_KEYS = {'lmv7m8k7Fe'}
 
 # AcoustID API 基础 URL
 ACOUSTID_BASE_URL = "https://api.acoustid.org/v2"
 
 
 def is_default_key(api_key=None):
-    """检查是否为默认测试 KEY（未配置自定义 KEY）"""
+    """检查是否为未配置的占位符 KEY 或已知的公开测试 KEY"""
     key = api_key or ACOUSTID_API_KEY
-    return key == DEFAULT_API_KEY
+    return key == _PLACEHOLDER_KEY or key in _KNOWN_TEST_KEYS
 
 
 def validate_api_key(api_key=None, timeout=5):

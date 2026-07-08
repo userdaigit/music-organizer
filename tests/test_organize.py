@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 test_organize.py
 测试 organize_music.py 的核心函数。
@@ -336,7 +336,7 @@ def test_build_target_path_album():
         'track': '01',
     }
     path = build_target_path(meta, is_singleton=False, artist_canonical='周杰伦')
-    assert path == '周杰伦/2001-范特西/01-简单爱-周杰伦-范特西'
+    assert path.replace(chr(92), '/')  == '周杰伦/2001-范特西/01-简单爱-周杰伦-范特西'
 
 
 def test_build_target_path_singleton():
@@ -348,7 +348,7 @@ def test_build_target_path_singleton():
         'track': '01',
     }
     path = build_target_path(meta, is_singleton=True, artist_canonical='周杰伦')
-    assert path == '周杰伦/其他/01-简单爱-周杰伦-范特西'
+    assert path.replace(chr(92), '/')  == '周杰伦/其他/01-简单爱-周杰伦-范特西'
 
 
 def test_build_target_path_album_no_year():
@@ -360,7 +360,7 @@ def test_build_target_path_album_no_year():
         'track': '01',
     }
     path = build_target_path(meta, is_singleton=False, artist_canonical='周杰伦')
-    assert path == '周杰伦/未知-范特西/01-简单爱-周杰伦-范特西'
+    assert path.replace(chr(92), '/')  == '周杰伦/未知-范特西/01-简单爱-周杰伦-范特西'
 
 
 def test_build_target_path_album_no_track():
@@ -373,7 +373,7 @@ def test_build_target_path_album_no_track():
         'track': '',
     }
     path = build_target_path(meta, is_singleton=False, artist_canonical='周杰伦')
-    assert path == '周杰伦/2001-范特西/简单爱-周杰伦-范特西'
+    assert path.replace(chr(92), '/')  == '周杰伦/2001-范特西/简单爱-周杰伦-范特西'
 
 
 def test_build_target_path_singleton_no_track():
@@ -385,7 +385,7 @@ def test_build_target_path_singleton_no_track():
         'track': '',
     }
     path = build_target_path(meta, is_singleton=True, artist_canonical='周杰伦')
-    assert path == '周杰伦/其他/简单爱-周杰伦-范特西'
+    assert path.replace(chr(92), '/')  == '周杰伦/其他/简单爱-周杰伦-范特西'
 
 
 def test_build_target_path_album_no_album():
@@ -402,7 +402,7 @@ def test_build_target_path_album_no_album():
     # album = sanitize(meta.get('album')) or '' -> sanitize('') = '未知' -> '未知' or '' = '未知'
     # album_part = '2001-未知' (因为 album='未知' 不是 falsy)
     # filename 中 album 也为 '未知'
-    assert path == '周杰伦/2001-未知/01-简单爱-周杰伦-未知'
+    assert path.replace(chr(92), '/')  == '周杰伦/2001-未知/01-简单爱-周杰伦-未知'
 
 
 def test_build_target_path_artist_canonical_differs():
@@ -416,7 +416,7 @@ def test_build_target_path_artist_canonical_differs():
     }
     path = build_target_path(meta, is_singleton=False, artist_canonical='周杰伦')
     # 目录名用 canonical，文件名中也用 canonical（专辑歌曲统一用专辑歌手）
-    assert path == '周杰伦/2001-范特西/01-简单爱-周杰伦-范特西'
+    assert path.replace(chr(92), '/')  == '周杰伦/2001-范特西/01-简单爱-周杰伦-范特西'
 
 
 def test_build_target_path_feat_artist():
@@ -431,7 +431,7 @@ def test_build_target_path_feat_artist():
     }
     path = build_target_path(meta, is_singleton=False, artist_canonical='周杰伦-Jay Chou')
     # 目录用完整格式，文件名中歌手用简化名（中国歌手只中文名）
-    assert path == '周杰伦-Jay Chou/2007-不能说的秘密/05-彩虹-周杰伦-不能说的秘密-江语晨'
+    assert path.replace(chr(92), '/')  == '周杰伦-Jay Chou/2007-不能说的秘密/05-彩虹-周杰伦-不能说的秘密-江语晨'
 
 
 def test_build_target_path_same_artist_no_feat():
@@ -446,7 +446,7 @@ def test_build_target_path_same_artist_no_feat():
     }
     path = build_target_path(meta, is_singleton=False, artist_canonical='周杰伦-Jay Chou')
     # 目录用完整格式，文件名中歌手用简化名，歌手相同不追加实唱歌手
-    assert path == '周杰伦-Jay Chou/2001-范特西/01-简单爱-周杰伦-范特西'
+    assert path.replace(chr(92), '/')  == '周杰伦-Jay Chou/2001-范特西/01-简单爱-周杰伦-范特西'
 
 
 def test_build_target_path_foreign_artist():
@@ -460,7 +460,7 @@ def test_build_target_path_foreign_artist():
     }
     path = build_target_path(meta, is_singleton=False, artist_canonical='Linkin Park-林肯公园')
     # 目录用完整格式(外文-中文)，文件名中只保留外文原名
-    assert path == 'Linkin Park-林肯公园/2003-Meteora/13-Numb-Linkin Park-Meteora'
+    assert path.replace(chr(92), '/')  == 'Linkin Park-林肯公园/2003-Meteora/13-Numb-Linkin Park-Meteora'
 
 
 def test_build_target_path_sanitizes_illegal_chars():
@@ -539,3 +539,5 @@ def test_file_hash_sha256_algorithm(tmp_path):
     assert h is not None
     assert isinstance(h, str)
     assert len(h) == 64  # SHA-256 hex digest 长度
+
+

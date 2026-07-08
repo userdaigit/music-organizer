@@ -1,10 +1,9 @@
-﻿<#
+<#
 .SYNOPSIS
-    Music Organizer - Windows PowerShell 启动脚本 (v1.1.0)
+    Music Organizer - Windows PowerShell 启动脚本 (v1.2.0)
 
 .DESCRIPTION
-    飞牛NAS / 群晖 / 威联通等 NAS 音乐库一键整理工具的 Windows 启动脚本，
-    功能类似 organize.sh：
+    音乐库一键整理工具的 Windows 启动脚本，功能类似 organize.sh：
       1. 检查 Python 是否安装
       2. 检查 mutagen 是否安装（未安装则提示 pip install 命令）
       3. 检查 chromaprint (fpcalc) 是否在 PATH 中（仅提示，不强制）
@@ -38,7 +37,7 @@
 
 .NOTES
     Author  : music-organizer
-    Version : 1.1.0
+    Version : 1.2.0
     License : GPLv2
 .LINK
     https://github.com/userdaigit/music-organizer
@@ -69,7 +68,7 @@ if (-not [System.IO.Path]::IsPathRooted($Output)) {
 }
 
 Write-Host "============================================"
-Write-Host "  Music Organizer - Windows 启动脚本 v1.1.0"
+Write-Host "  Music Organizer - Windows 启动脚本 v1.2.0"
 Write-Host "============================================"
 Write-Host "  源目录:   $Source"
 Write-Host "  输出目录: $Output"
@@ -126,10 +125,12 @@ Write-Host ""
 # ===== 运行整理脚本 =====
 # 默认启用 --write-tags（与 organize.sh 一致）；--name-map 指向配置目录。
 # $RemainingArgs 中的额外参数（如 --dry-run / --scrape / --fingerprint）原样转发。
-& $pythonCmd "$ConfigDir\organize_music.py" `
+$scriptPath = Join-Path $ConfigDir "organize_music.py"
+$nameMapPath = Join-Path $ConfigDir "name_map.json"
+& $pythonCmd $scriptPath `
     --source $Source `
     --output $Output `
-    --name-map "$ConfigDir\name_map.json" `
+    --name-map $nameMapPath `
     --write-tags `
     @RemainingArgs
 
@@ -140,10 +141,13 @@ if ($exitCode -ne 0) {
     exit $exitCode
 }
 
+$reportPath = Join-Path $ConfigDir "organize_report.txt"
+$artistsPath = Join-Path $ConfigDir "artists_found.txt"
+$variantsPath = Join-Path $ConfigDir "artist_variants.json"
 Write-Host ""
 Write-Host "============================================"
 Write-Host "  整理完成！"
-Write-Host "  查看报告: $ConfigDir\organize_report.txt"
-Write-Host "  歌手列表: $ConfigDir\artists_found.txt"
-Write-Host "  变体映射: $ConfigDir\artist_variants.json"
+Write-Host "  查看报告: $reportPath"
+Write-Host "  歌手列表: $artistsPath"
+Write-Host "  变体映射: $variantsPath"
 Write-Host "============================================"
