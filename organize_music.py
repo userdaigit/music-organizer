@@ -348,7 +348,25 @@ def _extract_chinese_artist(dirname):
                        0x61 <= ord(ch) <= 0x7a or 0x41 <= ord(ch) <= 0x5a
                        for ch in candidate):
                     return candidate
+        # 日文场景：如果名字过长（>15字符）且包含空格，可能是 "歌手 专辑名" 格式
+        # 取第一个空格前的部分作为歌手名
+        if len(name) > 15 and ' ' in name:
+            first_part = name.split(' ', 1)[0].strip()
+            if 2 <= len(first_part) <= 15:
+                return first_part
         return name.strip()
+
+    # 纯英文/拉丁文场景：如果名字过长（>20字符）且包含空格，取第一个词或前两个词
+    if len(name) > 20 and ' ' in name:
+        words = name.split()
+        # 取前两个词（通常是 "FirstName LastName" 或 "Band Name"）
+        if len(words) >= 2:
+            candidate = ' '.join(words[:2])
+            if len(candidate) <= 20:
+                return candidate
+        # 或者只取第一个词
+        if len(words[0]) >= 2:
+            return words[0]
 
     return name.strip()
 
@@ -414,7 +432,10 @@ NON_ARTIST_PATTERNS = re.compile(
     r'|vol\.?\d*$|volume\s*\d*$'
     r'|BONUS$|Bonus$|EXTRA$|Extra$'
     r'|OST$|Soundtrack$|原声$|原声带$'
-    r'|FLAC$|MP3$|WAV$|APE$)',
+    r'|FLAC$|MP3$|WAV$|APE$'
+    r'|.*\(PRO-CDR.*\).*$|'  # "Linkin Park ENTH E ND (PRO-CDR-101...)" 等 promo CD 标签
+    r'.*\(Demo\).*$|.*\(Live\).*$|.*\(Acoustic\).*$'  # 包含版本标注的通常是歌曲/专辑名
+    r')',
     re.IGNORECASE
 )
 
@@ -445,6 +466,15 @@ def _filter_non_artist(name):
     # 过长名字（>25字符）可能是歌曲名/专辑名而非歌手名
     if len(name) > 25:
         return '未知歌手'
+    # 包含明显歌曲名特征："feat.", "ft.", "with" 等通常是歌曲名中的合作标注
+    # 但如果整个名字就是 "A feat. B"，那可能是 artist 字段包含合作信息
+    # 这里只过滤包含 "We Made It" 等已知歌曲名的情况
+    known_song_patterns = [
+        r'We Made It', r'Enth E Nd', r'Frgt[/\]10', r'Leave Out All the Rest',
+    ]
+    for pattern in known_song_patterns:
+        if re.search(pattern, name, re.IGNORECASE):
+            return '未知歌手'
     return name
 
 
@@ -1336,6 +1366,9 @@ def organize(source_dir, output_dir, name_map_path,
 
                 # 应用结果
                 for orig_i, (enriched, src_name) in merged.items():
+                    # 刮削器补全的 artist 可能包含非歌手信息，需要过滤
+                    if enriched.get('artist'):
+                        enriched['artist'] = _filter_non_artist(enriched['artist'])
                     all_meta[orig_i] = enriched
                     if src_name == 'netease':
                         scraped_netease_count += 1
