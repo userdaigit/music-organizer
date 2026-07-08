@@ -487,7 +487,7 @@ def _clean_album_name(album):
 # 非歌手名模式（这些词被误识别为歌手时，应替换为"未知歌手"）
 NON_ARTIST_PATTERNS = re.compile(
     r'^(\d+$|'
-    r'\d+\s+\w+.*$|'  # "16 Leave Out All the Rest" 等以数字开头的歌曲名
+    r'\d+\s*[-._]?\s*\w+.*$|'  # "13 Bleed it Out" / "13 - Bleed it Out" / "01.One Step Closer" 等数字开头的歌曲名
     r'Single$|Singles$|EP$|Albums?$|专辑$|合集$|无损合集$'
     r'|vol\.?\d*$|volume\s*\d*$'
     r'|BONUS$|Bonus$|EXTRA$|Extra$'
