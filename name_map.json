@@ -281,6 +281,9 @@
 
     "amazarashi": {"display": "amazarashi", "nationality": "foreign"},
 
+    "华语群星": {"display": "群星", "nationality": "cn"},
+    "華語群星": {"display": "群星", "nationality": "cn"},
+    "華納羣星": {"display": "群星", "nationality": "cn"},
     "天乐群星": {"display": "群星", "nationality": "cn"},
     "天樂群星": {"display": "群星", "nationality": "cn"},
     "Various Artists": {"display": "群星", "nationality": "cn"},

@@ -501,7 +501,7 @@ NON_ARTIST_PATTERNS = re.compile(
 
 # 合辑类歌手名 → 统一为"群星"
 VARIOUS_ARTIST_PATTERNS = re.compile(
-    r'^(Various\s*Artists?|VA|Various|群星|天乐群星|天樂群星)$',
+    r'^(Various\s*Artists?|VA|Various|群星|华语群星|華語群星|華納羣星|天乐群星|天樂群星)$',
     re.IGNORECASE
 )
 
@@ -526,9 +526,26 @@ def _filter_non_artist(name):
     # 过长名字（>25字符）可能是歌曲名/专辑名而非歌手名
     if len(name) > 25:
         return '未知歌手'
-    # 包含明显歌曲名特征："feat.", "ft.", "with" 等通常是歌曲名中的合作标注
-    # 但如果整个名字就是 "A feat. B"，那可能是 artist 字段包含合作信息
-    # 这里只过滤包含 "We Made It" 等已知歌曲名的情况
+    # 数字+歌曲名模式（如 "13 Bleed it Out", "04 In the End", "01 One Step Closer"）
+    # 这些通常是单曲目录名被误识别为歌手名
+    if re.match(r'^\d{1,3}\s+\w+.*$', name):
+        return '未知歌手'
+    # 数字+分隔符+内容，且内容部分是已知歌曲名
+    if re.match(r'^\d{1,3}\s*[-._]\s*', name):
+        content = re.sub(r'^\d{1,3}\s*[-._]\s*', '', name).strip()
+        known_song_names = [
+            'bleed it out', 'in the end', 'one step closer', 'new divide',
+            'papercut', 'numb', 'faint', 'crawling', 'what i\'ve done',
+            'leave out all the rest', 'breaking the habit', 'somewhere i belong',
+            'given up', 'shadow of the day', 'valentine\'s day',
+            'waiting for the end', 'burning in the skies', 'iridescent',
+            'lost in the echo', 'castle of glass', 'a light that never comes',
+            'final masquerade', 'heavy', 'talking to myself', 'good goodbye',
+            'battle symphony', 'invisible', 'one more light',
+        ]
+        if content.lower() in known_song_names:
+            return '未知歌手'
+    # 包含明显歌曲名特征
     known_song_patterns = [
         r'We Made It', r'Enth E Nd', r'Frgt.?10', r'Leave Out All the Rest',
     ]
@@ -1257,6 +1274,19 @@ def organize(source_dir, output_dir, name_map_path,
         if meta['artist'] in artist_mapping:
             meta['artist_original'] = meta['artist']
             meta['artist'] = artist_mapping[meta['artist']]
+
+    # 3a. 强制应用 name_map 映射（确保即使 artist_normalizer 缓存/网络有问题，
+    #     name_map 中的映射也能生效）
+    name_map_applied = 0
+    for meta in all_meta:
+        raw_artist = meta.get('artist_original', meta['artist'])
+        if raw_artist in name_map:
+            mapped = name_map[raw_artist]
+            if meta['artist'] != mapped:
+                meta['artist'] = mapped
+                name_map_applied += 1
+    if name_map_applied > 0:
+        print(f"  name_map 强制映射: {name_map_applied} 首")
 
     # 3b. 对未知歌手尝试路径名识别（在刮削之前）
     unknown_count = sum(1 for m in all_meta if m['artist'] == '未知歌手')

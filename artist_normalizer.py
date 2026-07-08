@@ -363,9 +363,21 @@ class ArtistNormalizer:
                     # 规则2: key 是 name_map 的 value（被错误覆盖的映射）
                     if key in name_map_values:
                         remove = True
-                    # 规则3: key 在 name_map 中（name_map 应优先）
+                    # 规则3: key 在 name_map 中，但 cache 值与 name_map 不一致
                     if key in self.name_map:
-                        remove = True
+                        expected = self.name_map[key]
+                        if isinstance(expected, dict):
+                            expected = expected.get('display', key)
+                        if value != expected:
+                            remove = True
+                    # 规则4: value 是明显错误的 MusicBrainz 结果
+                    # （如 "华语群星" -> "華納羣星"，value 包含不常见繁体组合）
+                    if not remove and value not in name_map_values:
+                        # 检测 value 是否包含 MusicBrainz 常见的错误模式
+                        # 如 "華納羣星"、"動力火車" 等（这些是繁体，但不是 name_map 的值）
+                        has_rare_chars = any(0xE000 <= ord(ch) <= 0xF8FF for ch in value)
+                        if has_rare_chars:
+                            remove = True
                     if remove:
                         del raw_cache[key]
                         cleaned += 1
