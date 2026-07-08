@@ -113,6 +113,20 @@ def _extract_year_from_string(text):
 # 用户决策：演唱会作为类似专辑复制，文件夹名前加"演唱会-"标识，不混入录音室专辑
 CONCERT_PATTERN = re.compile(r'演唱会|Live|Concert', re.IGNORECASE)
 
+# 合辑类歌手名（修复 Bug AA）：当提取到这些名字时，检查更上层目录是否有明确歌手
+COMPILATION_ARTIST_PATTERN = re.compile(
+    r'^(群星|华语群星|華語群星|華納羣星|天乐群星|天樂群星|'
+    r'Various\s*Artists?|VA|Various|Unknown\s*Artist|未知歌手|未知)$',
+    re.IGNORECASE
+)
+
+
+def _is_compilation_artist(name):
+    """判断名字是否是合辑类歌手名（群星、Various Artists 等）"""
+    if not name:
+        return False
+    return bool(COMPILATION_ARTIST_PATTERN.match(name.strip()))
+
 
 def detect_concert(filepath):
     """
@@ -320,6 +334,12 @@ def infer_from_directory(filepath):
         artist_dir = valid_parents[1]  # 祖父目录
         album_dir = valid_parents[0]   # 父目录
         result['artist'] = _extract_chinese_artist(artist_dir)
+        # 修复(Bug AA)：合辑名（群星等）在歌手目录下时，用更上层目录的歌手名
+        # 如 "周杰伦/2007.群星.我们都爱这个伦 2CD/歌曲" 应归到周杰伦而非群星
+        if _is_compilation_artist(result.get('artist', '')) and len(valid_parents) >= 3:
+            upper_artist = _extract_chinese_artist(valid_parents[2])
+            if upper_artist and not _is_compilation_artist(upper_artist):
+                result['artist'] = upper_artist
         result['album'] = clean_album_dir_name(album_dir)
         year = _extract_year_from_string(album_dir)
         if year:
@@ -386,7 +406,11 @@ def _find_artist_from_ancestors(all_parents, skip_patterns):
         has_letters = any(ch.isalpha() for ch in name)
         if (has_cjk or has_letters) and len(name) >= 2:
             # 从目录名中提取歌手名（处理 "Linkin Park Discography" -> "Linkin Park"）
-            return _extract_chinese_artist(name)
+            candidate = _extract_chinese_artist(name)
+            # 修复(Bug AA)：合辑名（群星等）不是真实歌手，继续往上找
+            if _is_compilation_artist(candidate):
+                continue
+            return candidate
     return None
 
 
@@ -737,18 +761,22 @@ def extract_metadata(filepath, encoding_fixed_count=None):
         if dir_album_clean and dir_album_clean != album:
             album = _choose_better_album(album, dir_album_clean)
 
-    year = tags.get('date') or fname.get('year') or dir_info.get('year') or ''
-    if year:
-        year_match = re.search(r'(\d{4})', year)
-        if year_match:
-            year = year_match.group(1)
+    # 年份提取：分离 tag 年份和目录/文件名年份
+    # tag 年份中的当前年份通常是软件处理日期，不可靠；目录名年份是用户标注，更可靠
+    tag_year_raw = tags.get('date') or ''
+    tag_year = ''
+    if tag_year_raw:
+        m = re.search(r'(\d{4})', tag_year_raw)
+        if m:
+            tag_year = m.group(1)
 
-    # 年份校验：拒绝未来年份（明显无效）；保留当前年份（可能是合法发行）
-    # 修复(Bug G)：原代码 `if year == current_year` 无条件丢弃当前年份，
-    # 导致今年发行的歌曲年份被清空。
+    # tag 年份校验：拒绝当前年份及未来年份（tag 中的当前年份通常是处理日期，非真实发行年份）
     current_year = str(datetime.now().year)
-    if year and year.isdigit() and int(year) > int(current_year):
-        year = ''  # 未来年份无效，留空让刮削器补全
+    if tag_year and tag_year.isdigit() and int(tag_year) >= int(current_year):
+        tag_year = ''
+
+    # 合并：tag 年份 > 文件名年份 > 目录年份
+    year = tag_year or fname.get('year') or dir_info.get('year') or ''
 
     track = tags.get('tracknumber') or fname.get('track') or ''
     if track:
