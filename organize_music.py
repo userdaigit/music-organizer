@@ -552,6 +552,13 @@ def _filter_non_artist(name):
     for pattern in known_song_patterns:
         if re.search(pattern, name, re.IGNORECASE):
             return '未知歌手'
+    # 名字包含不匹配的方括号/圆括号（如 "27]" "[经典" 等标签解析错误）
+    # 正常歌手名不应包含单个的括号
+    if re.search(r'[\[\](){}][^\[\](){}]*$', name) or re.search(r'^[\[\](){}]', name):
+        return '未知歌手'
+    # 名字主要由数字和标点组成（如 "27]" "16." "01-"）
+    if len(name) <= 5 and sum(c.isdigit() for c in name) >= 1 and sum(c.isalpha() for c in name) == 0:
+        return '未知歌手'
     return name
 
 
@@ -1230,7 +1237,9 @@ def organize(source_dir, output_dir, name_map_path,
 
     # 用网易云音乐补充未识别的歌手别名
     if netease_scraper:
-        unresolved = [a for a in all_artists if artist_mapping.get(a, a) == a]
+        # 只补充 name_map 中没有的歌手（避免覆盖 name_map 的正确映射）
+        unresolved = [a for a in all_artists
+                      if artist_mapping.get(a, a) == a and a not in name_map]
         if unresolved:
             bar = ProgressBar("网易云补全", len(unresolved), unit="位")
             netease_enriched = 0
