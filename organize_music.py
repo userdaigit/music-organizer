@@ -291,25 +291,36 @@ def infer_from_directory(filepath):
             if year:
                 result['year'] = year
     elif len(valid_parents) == 1:
-        # 只有一个有效父目录
-        # 检查它是否像歌手名（非纯数字开头、不含"-"后面的歌名特征）
+        # 只有一个有效父目录，需要仔细判断它是歌手名还是专辑名/排序编号
         maybe_artist = valid_parents[0]
-        is_number_album = re.match(r'^\d{1,3}\s*[-._]\s*', maybe_artist)
-        if not is_number_album:
-            # 看起来像歌手名
-            result['artist'] = _extract_chinese_artist(maybe_artist)
-            year = _extract_year_from_string(maybe_artist)
-            if year:
-                result['year'] = year
+
+        # 区分三种情况：
+        # 1. 纯数字（01/02/03）：只是排序编号，不推断任何信息
+        # 2. 数字前缀+内容（17 - New Divide）：可能是专辑名
+        # 3. 非数字开头：可能是歌手名
+        is_pure_number = re.match(r'^\d+$', maybe_artist)
+        is_number_prefix = re.match(r'^\d{1,3}\s*[-._]\s*', maybe_artist)
+
+        # 无论哪种情况，都尝试从更远的祖先中找歌手名
+        fallback_artist = _find_artist_from_ancestors(parents, skip_patterns)
+        if fallback_artist:
+            result['artist'] = fallback_artist
+
+        if is_pure_number:
+            # 纯数字目录只是排序编号，不推断 album
+            pass
+        elif is_number_prefix:
+            # 数字前缀+内容，提取内容部分判断是否有意义
+            content_part = re.sub(r'^\d{1,3}\s*[-._]\s*', '', maybe_artist).strip()
+            if content_part and len(content_part) >= 3 and not content_part.isdigit():
+                # 内容部分有实际意义（如 "New Divide"），可能是专辑名
+                result['album'] = clean_album_dir_name(maybe_artist)
+            # 否则不推断 album（如 "01-" 后面内容太短或纯数字）
         else:
-            # 是数字开头的专辑目录（如 "17 - New Divide"）
-            # 从更远的祖先中找歌手名
-            fallback_artist = _find_artist_from_ancestors(parents, skip_patterns)
-            if fallback_artist:
-                result['artist'] = fallback_artist
-            album_dir = maybe_artist
-            result['album'] = clean_album_dir_name(album_dir)
-            year = _extract_year_from_string(album_dir)
+            # 非数字开头，尝试作为歌手名（但只在没找到祖先歌手时）
+            if not result.get('artist'):
+                result['artist'] = _extract_chinese_artist(maybe_artist)
+            year = _extract_year_from_string(maybe_artist)
             if year:
                 result['year'] = year
 
@@ -320,7 +331,7 @@ def _find_artist_from_ancestors(all_parents, skip_patterns):
     """
     在所有祖先目录中查找歌手名。
     策略：从近到远扫描，跳过skip目录和数字开头目录，
-    找到第一个看起来像歌手名的目录。
+    找到第一个看起来像歌手名的目录，并从中提取歌手名。
     """
     for p in all_parents:
         name = p.name
@@ -329,10 +340,14 @@ def _find_artist_from_ancestors(all_parents, skip_patterns):
         # 跳过数字开头的目录（通常是专辑排序号）
         if re.match(r'^\d{1,3}\s*[-._]\s*', name):
             continue
-        # 检查是否包含 CJK 字符或合理的英文名（至少2个字母，不含纯数字）
+        # 跳过纯数字
+        if name.isdigit():
+            continue
+        # 检查是否包含 CJK 字符或合理的英文名（至少2个字母）
         has_cjk = any(0x4e00 <= ord(ch) <= 0x9fff for ch in name)
         has_letters = any(ch.isalpha() for ch in name)
         if (has_cjk or has_letters) and len(name) >= 2:
+            # 从目录名中提取歌手名（处理 "Linkin Park Discography" -> "Linkin Park"）
             return _extract_chinese_artist(name)
     return None
 
