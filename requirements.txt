@@ -6,8 +6,8 @@
 #
 # 1. 音频指纹识别 (--fingerprint):
 #    需要 chromaprint (fpcalc) 命令行工具（系统级包，不在 requirements.txt 中）
-#      Debian/Ubuntu: sudo apt install chromaprint-tools
-#      CentOS/RHEL:   sudo yum install chromaprint-tools
+#      Debian/Ubuntu: sudo apt install libchromaprint-tools
+#      CentOS/RHEL:   sudo yum install chromaprint
 #      macOS:         brew install chromaprint
 #      Windows:       下载 fpcalc.exe 并加入 PATH
 #                    https://github.com/acoustid/chromaprint/releases

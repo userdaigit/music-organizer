@@ -61,8 +61,8 @@ pip install -q -r "$CONFIG_DIR/requirements.txt" 2>/dev/null || true
 if ! command -v fpcalc &> /dev/null; then
     echo "  [提示] fpcalc 未安装，音频指纹功能不可用"
     echo "  安装方式："
-    echo "    Debian/Ubuntu: sudo apt install chromaprint-tools"
-    echo "    CentOS/RHEL:   sudo yum install chromaprint-tools"
+    echo "    Debian/Ubuntu: sudo apt install libchromaprint-tools"
+    echo "    CentOS/RHEL:   sudo yum install chromaprint"
     echo "    macOS:         brew install chromaprint"
     echo "    Windows:       下载 fpcalc.exe 并加入 PATH"
     echo "    Docker:        镜像内已包含"

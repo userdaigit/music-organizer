@@ -470,7 +470,7 @@ def _filter_non_artist(name):
     # 但如果整个名字就是 "A feat. B"，那可能是 artist 字段包含合作信息
     # 这里只过滤包含 "We Made It" 等已知歌曲名的情况
     known_song_patterns = [
-        r'We Made It', r'Enth E Nd', r'Frgt[/\]10', r'Leave Out All the Rest',
+        r'We Made It', r'Enth E Nd', r'Frgt.?10', r'Leave Out All the Rest',
     ]
     for pattern in known_song_patterns:
         if re.search(pattern, name, re.IGNORECASE):
@@ -1071,7 +1071,7 @@ def organize(source_dir, output_dir, name_map_path,
             else:
                 print(f"  音频指纹: 后端不可用 + 未配置API KEY")
                 print(f"           安装后端: pip install pyacoustid")
-                print(f"           或: apt-get install -y chromaprint-tools (fpcalc)")
+                print(f"           或: apt-get install -y libchromaprint-tools (fpcalc)")
                 print(f"           API KEY: 请在 https://acoustid.org/api-key 申请免费 KEY")
                 print(f"           配置方式: 设置环境变量 ACOUSTID_API_KEY")
         elif fp_key_status is False:
@@ -1081,7 +1081,7 @@ def organize(source_dir, output_dir, name_map_path,
             else:
                 print(f"  音频指纹: 后端不可用 + API KEY无效")
                 print(f"           安装后端: pip install pyacoustid")
-                print(f"           或: apt-get install -y chromaprint-tools (fpcalc)")
+                print(f"           或: apt-get install -y libchromaprint-tools (fpcalc)")
                 print(f"           API KEY: 请检查 ACOUSTID_API_KEY 是否正确")
         else:
             # KEY 有效 (fp_key_status is True)
@@ -1090,7 +1090,7 @@ def organize(source_dir, output_dir, name_map_path,
             elif not fp_backend:
                 print(f"  音频指纹: API KEY已配置，但后端不可用")
                 print(f"           安装后端: pip install pyacoustid")
-                print(f"           或: apt-get install -y chromaprint-tools (fpcalc)")
+                print(f"           或: apt-get install -y libchromaprint-tools (fpcalc)")
             else:
                 print(f"  音频指纹: 不可用")
 

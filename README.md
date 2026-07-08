@@ -63,8 +63,8 @@ pip install -r requirements.txt
 
 | 平台 | 安装命令 |
 |------|----------|
-| Debian/Ubuntu | `sudo apt install chromaprint-tools` |
-| CentOS/RHEL | `sudo yum install chromaprint-tools` |
+| Debian/Ubuntu | `sudo apt install libchromaprint-tools` |
+| CentOS/RHEL | `sudo yum install chromaprint` |
 | macOS | `brew install chromaprint` |
 | Windows | 下载 `fpcalc.exe` 并加入 PATH |
 | Docker | 镜像内已预装 |
@@ -131,7 +131,7 @@ git pull
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-sudo apt install chromaprint-tools  # 指纹识别（可选）
+sudo apt install libchromaprint-tools  # 指纹识别（可选）
 python3 organize_music.py -s /vol1/1000/music -o /vol1/1000/music2 --write-tags --scrape
 ```
 

@@ -9,7 +9,7 @@
 依赖:
   - pyacoustid (pip install pyacoustid)
   - Chromaprint 库或 fpcalc 命令行工具
-    (Docker 中可安装: apt-get install -y chromaprint-tools)
+    (Docker 中可安装: apt-get install -y libchromaprint-tools)
 
 参考:
   - pyacoustid: https://github.com/beetbox/pyacoustid

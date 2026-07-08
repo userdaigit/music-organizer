@@ -9,7 +9,7 @@ LABEL version="1.2.0"
 # ffmpeg: 音频格式转换（可选）
 # locales: 中文语言支持
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    chromaprint-tools \
+    libchromaprint-tools \
     ffmpeg \
     locales \
     && rm -rf /var/lib/apt/lists/* \
