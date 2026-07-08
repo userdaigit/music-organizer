@@ -88,7 +88,7 @@ def _extract_year_from_string(text):
     优先匹配方括号/圆括号中的年份，其次是开头年份前缀，最后是任意位置。
     返回年份字符串或空字符串。
     """
-    if not text:
+    if not isinstance(text, str) or not text:
         return ''
     # 优先：方括号/圆括号中的年份
     m = YEAR_BRACKET_PATTERN.search(text)
@@ -184,7 +184,7 @@ def parse_filename(filepath):
         track_num = track_match.group(1)
         stem = TRACK_PREFIX_PATTERN.sub('', stem)
 
-    # 按连字符分割
+    # 按连字符分割（主要分隔符）
     parts = [p.strip() for p in stem.split('-') if p.strip()]
     result = {'track': track_num}
 
@@ -196,7 +196,26 @@ def parse_filename(filepath):
         result['artist'] = parts[0]
         result['title'] = parts[1]
     elif len(parts) == 1:
-        result['title'] = parts[0]
+        # 没有连字符，尝试按点号分割（如 "31.张学友.佛诞吉祥"）
+        dot_parts = [p.strip() for p in stem.split('.') if p.strip()]
+        if len(dot_parts) >= 3:
+            # 格式: track.artist.title 或 artist.album.title
+            # 如果第一段是纯数字且长度<=3（合理曲目号范围），认为是 track number
+            if dot_parts[0].isdigit() and len(dot_parts[0]) <= 3:
+                result['track'] = dot_parts[0]
+                result['artist'] = dot_parts[1]
+                # 剩余所有段合并为 title，避免截断
+                result['title'] = '.'.join(dot_parts[2:])
+            else:
+                result['artist'] = dot_parts[0]
+                result['album'] = dot_parts[1]
+                # 剩余所有段合并为 title，避免截断
+                result['title'] = '.'.join(dot_parts[2:])
+        elif len(dot_parts) == 2:
+            result['artist'] = dot_parts[0]
+            result['title'] = dot_parts[1]
+        else:
+            result['title'] = parts[0]
 
     # 处理文件名本身的乱码
     for key in ['artist', 'album', 'title']:
@@ -322,20 +341,23 @@ def _extract_chinese_artist(dirname):
 def clean_album_dir_name(dirname):
     """
     从目录名中清洗出专辑名，去除年份前缀。
+    只去除合理的年份范围(1900-2099)，避免误删专辑名中的其他4位数字。
     "1999-吻别" -> "吻别"
     "[1999]吻别" -> "吻别"
     "1999.吻别" -> "吻别"
     "吻别(1999)" -> "吻别"
+    "10000 Days" -> "10000 Days" (保留，10000不是年份)
     """
     if not dirname:
         return dirname
     name = dirname.strip()
     # 去除开头的年份前缀: "1999.吻别" / "1999-吻别" / "1999_吻别"
-    name = re.sub(r'^\d{4}[.\-_\s]\s*', '', name)
+    # 限制为 19xx 或 20xx，避免误删如 "10000 Days" 中的 "1000"
+    name = re.sub(r'^(?:19|20)\d{2}[.\-_\s]\s*', '', name)
     # 去除方括号/圆括号中的年份: "吻别[1999]" / "吻别(1999)"
-    name = re.sub(r'[\[【\(（]\s*\d{4}\s*[\]】\)）]', '', name)
+    name = re.sub(r'[\[【\(（]\s*(?:19|20)\d{2}\s*[\]】\)）]', '', name)
     # 去除末尾的年份: "吻别 1999" -> "吻别"
-    name = re.sub(r'\s*\d{4}$', '', name)
+    name = re.sub(r'\s*(?:19|20)\d{2}$', '', name)
     return name.strip() or dirname
 
 
@@ -918,6 +940,8 @@ def organize(source_dir, output_dir, name_map_path,
     except (FileNotFoundError, json.JSONDecodeError):
         pass
 
+    name_map_count = len(name_map)
+
     # 填充全局国籍表，供 _short_artist_name() 使用
     global _GLOBAL_NATIONALITIES
     _GLOBAL_NATIONALITIES = artist_nationalities
@@ -935,10 +959,15 @@ def organize(source_dir, output_dir, name_map_path,
                 cached_data = json.load(f)
             cached_count = len(cached_data.get('cache', {}))
             # name_map 条目数差异超过20%时刷新缓存
-            if cached_count > 0 and abs(name_map_count - cached_count) > max(10, cached_count * 0.2):
+            diff = abs(name_map_count - cached_count)
+            threshold = max(10, int(cached_count * 0.2))
+            if cached_count > 0 and diff > threshold:
                 artist_cache_file.unlink()
-                print(f"  歌手缓存已刷新 (缓存 {cached_count} 条 → name_map {name_map_count} 条)")
-        except Exception:
+                print(f"  歌手缓存已刷新 (name_map {name_map_count} 条 vs 缓存 {cached_count} 条, 差异 {diff} > 阈值 {threshold})")
+            else:
+                print(f"  歌手缓存保留 (name_map {name_map_count} 条 vs 缓存 {cached_count} 条)")
+        except Exception as e:
+            print(f"  歌手缓存检查异常: {e}")
             pass
 
     artist_normalizer = ArtistNormalizer(
