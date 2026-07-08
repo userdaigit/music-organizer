@@ -133,6 +133,47 @@ def find_similar_artists(artists, threshold=0.85):
 
 
 # ============================================================
+# 乱码检测
+# ============================================================
+def _contains_garbage_chars(text):
+    """
+    检测字符串是否包含乱码字符。
+    乱码特征：
+      - 包含控制字符 (\x00-\x1F，排除 \t\n\r)
+      - 包含未分配的 Unicode 私用区字符 (U+E000-U+F8FF, U+F0000-U+FFFFD)
+      - 中文场景：包含 Big5/Latin-1 误解码产生的常见乱码模式
+        (如 ³¯¤p¬K, °Ê¤O¤õ¨® 等)
+    """
+    if not text:
+        return False
+
+    # 检查控制字符
+    for ch in text:
+        code = ord(ch)
+        if code < 32 and code not in (9, 10, 13):
+            return True
+        # 私用区字符 (PUA) — 通常是乱码或字体私有编码
+        if 0xE000 <= code <= 0xF8FF:
+            return True
+
+    # 检测 Big5 误解码模式：连续出现 0xA1-0xFE 范围内的字符
+    # 这些字符在 UTF-8 中通常表示 Latin-1 扩展区的乱码
+    big5_garbage_count = 0
+    for ch in text:
+        code = ord(ch)
+        # 0x00A1-0x00BF, 0x00C0-0x00FF 是 Latin-1 补充区
+        # Big5 误解码后常见这些字符
+        if 0x00A1 <= code <= 0x00FF:
+            big5_garbage_count += 1
+
+    # 如果超过 30% 的字符是疑似乱码，判定为乱码
+    if len(text) > 0 and big5_garbage_count / len(text) > 0.3:
+        return True
+
+    return False
+
+
+# ============================================================
 # MusicBrainz 歌手查询
 # ============================================================
 MB_API_BASE = "https://musicbrainz.org/ws/2/artist"
@@ -304,12 +345,35 @@ class ArtistNormalizer:
             self._load_cache()
 
     def _load_cache(self):
-        """从文件加载缓存"""
+        """从文件加载缓存，自动清理错误映射"""
         try:
             with open(self.cache_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                self.cache = data.get('cache', {})
+                raw_cache = data.get('cache', {})
                 self.mb_cache = data.get('mb_cache', {})
+
+                # 清理 cache 中的错误映射
+                name_map_values = set(self.name_map.values())
+                cleaned = 0
+                for key, value in list(raw_cache.items()):
+                    remove = False
+                    # 规则1: value 包含乱码字符
+                    if _contains_garbage_chars(value):
+                        remove = True
+                    # 规则2: key 是 name_map 的 value（被错误覆盖的映射）
+                    if key in name_map_values:
+                        remove = True
+                    # 规则3: key 在 name_map 中（name_map 应优先）
+                    if key in self.name_map:
+                        remove = True
+                    if remove:
+                        del raw_cache[key]
+                        cleaned += 1
+
+                self.cache = raw_cache
+                if cleaned > 0:
+                    print(f"  歌手缓存已清理 {cleaned} 条错误映射")
+                    self._save_cache()
         except (FileNotFoundError, json.JSONDecodeError):
             pass
 
@@ -374,6 +438,22 @@ class ArtistNormalizer:
 
             if mb_result:
                 canonical = build_artist_canonical_name(mb_result, query_name)
+
+                # 保护 name_map 的已有映射：如果 artist_name 已经是 name_map 的 value，
+                # 说明它已经被手动配置过，MusicBrainz 结果不应覆盖
+                name_map_values = set(self.name_map.values())
+                if artist_name in name_map_values:
+                    # 返回原始名（保持 name_map 的映射结果）
+                    self.cache[artist_name] = artist_name
+                    self._save_cache()
+                    return artist_name
+
+                # 检测乱码：如果 canonical 包含乱码字符，不使用 MusicBrainz 结果
+                if _contains_garbage_chars(canonical):
+                    self.cache[artist_name] = artist_name
+                    self._save_cache()
+                    return artist_name
+
                 # 二次校验：如果 canonical 在 name_map 中有更好的映射，用 name_map
                 if canonical in self.name_map:
                     canonical = self.name_map[canonical]

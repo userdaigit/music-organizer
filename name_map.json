@@ -273,6 +273,11 @@
     "ZARD": {"display": "ZARD-坂井泉水", "nationality": "foreign"},
     "坂井泉水": {"display": "ZARD-坂井泉水", "nationality": "foreign"},
     "Zard": {"display": "ZARD-坂井泉水", "nationality": "foreign"},
+    "Sakai, Izumi-坂井泉水": {"display": "ZARD-坂井泉水", "nationality": "foreign"},
+    "Sakai Izumi": {"display": "ZARD-坂井泉水", "nationality": "foreign"},
+    "Izumi Sakai": {"display": "ZARD-坂井泉水", "nationality": "foreign"},
+
+    "叶蒨文-Sally Yip": {"display": "叶倩文-Sally Yeh", "nationality": "cn"},
 
     "amazarashi": {"display": "amazarashi", "nationality": "foreign"},
 

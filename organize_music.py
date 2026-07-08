@@ -1360,6 +1360,32 @@ def organize(source_dir, output_dir, name_map_path,
         print()
         print("[4/8] 网络刮削: 跳过(未启用)")
 
+    # 4b. 刮削后二次歌手规范化（刮削器可能补全了新的歌手名）
+    if args.scrape:
+        print()
+        print("[4b/8] 刮削后歌手名规范化...")
+        post_scrape_artists = sorted(set(
+            m['artist'] for m in all_meta
+            if m['artist'] != '未知歌手' and m['artist'] not in artist_mapping
+        ))
+        if post_scrape_artists:
+            post_bar = ProgressBar("歌手规范(后)", len(post_scrape_artists), unit="位")
+            post_scrape_mapping = {}
+            for i, artist in enumerate(post_scrape_artists):
+                post_scrape_mapping[artist] = artist_normalizer.normalize_one(artist)
+                post_bar.update(i + 1)
+            post_bar.finish()
+            # 应用二次映射
+            applied = 0
+            for meta in all_meta:
+                if meta['artist'] in post_scrape_mapping:
+                    new_artist = post_scrape_mapping[meta['artist']]
+                    if new_artist != meta['artist']:
+                        meta['artist'] = new_artist
+                        applied += 1
+            if applied > 0:
+                print(f"  二次规范化: {applied} 首歌曲的歌手名已修正")
+
     # 5. 音频指纹识别（信息全缺的歌曲）
     # 优先级: Shazam → AcoustID
     fp_shazam_count = 0
