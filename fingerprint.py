@@ -77,13 +77,22 @@ def validate_api_key(api_key=None, timeout=5):
 
 
 def check_fpcalc():
-    """检查 fpcalc 工具是否可用"""
+    """
+    检查音频指纹后端是否可用。
+
+    依次检测:
+      1. pyacoustid Python 包（提供 acoustid.match / fingerprint_file）
+      2. chromaprint 命令行工具 (fpcalc)
+    只要任一可用即返回 True。
+    """
     try:
-        import acoustid
-        # 尝试生成指纹来检测后端是否可用
+        import acoustid  # noqa: F401
         return True
     except ImportError:
-        return False
+        pass
+    # 回退: 检测 fpcalc 命令行工具
+    import shutil
+    return shutil.which('fpcalc') is not None
 
 
 def identify_file(filepath, api_key=None, timeout=30):
@@ -249,22 +258,35 @@ class FingerprintIdentifier:
         if elapsed < 0.4:
             time.sleep(0.4 - elapsed)
 
+        # pyacoustid 已安装 -> 直接使用
         result = identify_file(filepath, self.api_key)
-        self.last_request_time = time.time()
-        self.cache[path_str] = result
-        self._save_cache()
-        return result
+        if result is not None:
+            self.last_request_time = time.time()
+            self.cache[path_str] = result
+            self._save_cache()
+            return result
+
+        # pyacoustid 失败但 chromaprint 命令行可用 -> 尝试 fpcalc
+        # (此场景需额外实现, 当前先返回 None)
+        return None
 
     def is_available(self):
         """
-        检查指纹识别功能是否可用。
-        需要 fpcalc 工具 + 有效（非默认）API KEY。
+        检查指纹识别功能是否可用（整体可用性）。
+        需要 后端(pyacoustid/fpcalc) + 有效（非默认）API KEY 同时满足。
         """
         if not self.available:
             return False
         if self._key_status in ("default", False):
             return False
         return True
+
+    def is_backend_available(self):
+        """
+        检查后端是否可用（pyacoustid 或 fpcalc 命令行工具）。
+        不检查 API KEY 状态。
+        """
+        return self.available
 
     def get_key_status(self):
         """

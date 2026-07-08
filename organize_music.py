@@ -226,7 +226,8 @@ def infer_from_directory(filepath):
         r'|vol\.?\d*$|volume\s*\d*$'
         r'|.*Discography.*$|.*Collection.*$|.*Ultimate.*$|.*Best$'
         r'| FLAC$|MP3$|WAV$|APE$'
-        r'| BONUS$|Bonus$|EXTRA$|Extra$)',
+        r'| BONUS$|Bonus$|EXTRA$|Extra$'
+        r'|未知歌手$|未知$|Unknown Artist$)',
         re.IGNORECASE
     )
     valid_parents = []
@@ -847,7 +848,7 @@ def scan_audio_files(source_dir):
 def organize(source_dir, output_dir, name_map_path,
              dry_run=False, do_write_tags=False,
              use_scrape=False, use_fingerprint=False,
-             use_network_artist=True):
+             use_network_artist=True, clear_cache=False):
     """主整理函数"""
     print("=" * 70)
     print(f"  飞牛NAS 音乐库一键整理工具 v{__version__}")
@@ -922,6 +923,7 @@ def organize(source_dir, output_dir, name_map_path,
     _GLOBAL_NATIONALITIES = artist_nationalities
 
     config_dir = Path(name_map_path).parent
+    args_clear_cache = clear_cache
 
     # 初始化各模块
     print("[初始化] 加载模块...")
@@ -985,15 +987,38 @@ def organize(source_dir, output_dir, name_map_path,
 
     if use_fingerprint:
         fp_available = fp_identifier.is_available()
+        fp_backend = fp_identifier.is_backend_available()
         fp_key_status = fp_identifier.get_key_status()
         if fp_key_status == "default":
-            print(f"  音频指纹: 未配置API KEY，或API KEY无效，无法使用音频指纹识别")
-            print(f"           请在 https://acoustid.org/api-key 申请免费 KEY")
-            print(f"           配置方式: 设置环境变量 ACOUSTID_API_KEY 或修改 fingerprint.py")
+            if fp_backend:
+                print(f"  音频指纹: 后端可用(pyacoustid/fpcalc)，但未配置API KEY")
+                print(f"           请在 https://acoustid.org/api-key 申请免费 KEY")
+                print(f"           配置方式: 设置环境变量 ACOUSTID_API_KEY 或修改 fingerprint.py")
+            else:
+                print(f"  音频指纹: 后端不可用 + 未配置API KEY")
+                print(f"           安装后端: pip install pyacoustid")
+                print(f"           或: apt-get install -y chromaprint-tools (fpcalc)")
+                print(f"           API KEY: 请在 https://acoustid.org/api-key 申请免费 KEY")
+                print(f"           配置方式: 设置环境变量 ACOUSTID_API_KEY")
         elif fp_key_status is False:
-            print(f"  音频指纹: API KEY 无效，无法使用音频指纹识别")
+            if fp_backend:
+                print(f"  音频指纹: 后端可用，但API KEY无效")
+                print(f"           请检查 ACOUSTID_API_KEY 是否正确")
+            else:
+                print(f"  音频指纹: 后端不可用 + API KEY无效")
+                print(f"           安装后端: pip install pyacoustid")
+                print(f"           或: apt-get install -y chromaprint-tools (fpcalc)")
+                print(f"           API KEY: 请检查 ACOUSTID_API_KEY 是否正确")
         else:
-            print(f"  音频指纹: {'可用' if fp_available else '不可用(需安装chromaprint)'}")
+            # KEY 有效 (fp_key_status is True)
+            if fp_available:
+                print(f"  音频指纹: 可用")
+            elif not fp_backend:
+                print(f"  音频指纹: API KEY已配置，但后端不可用")
+                print(f"           安装后端: pip install pyacoustid")
+                print(f"           或: apt-get install -y chromaprint-tools (fpcalc)")
+            else:
+                print(f"  音频指纹: 不可用")
 
     if kugou_scraper and use_scrape:
         kugou_available = kugou_scraper.is_available()
@@ -1120,12 +1145,51 @@ def organize(source_dir, output_dir, name_map_path,
     if use_scrape:
         print()
         print("[4/8] 网络刮削补全元数据（3源并行）...")
+
+        # 检测并提示过期缓存文件
+        cache_files = []
+        netease_cache = config_dir / 'netease_cache.json'
+        scraper_cache = config_dir / 'scraper_cache.json'
+        if netease_cache.exists():
+            cache_files.append(netease_cache)
+        if scraper_cache.exists():
+            cache_files.append(scraper_cache)
+        if cache_files:
+            from datetime import datetime as _dt
+            now = _dt.now()
+            stale_threshold = 7 * 86400  # 7 天
+            stale_files = []
+            for cf in cache_files:
+                try:
+                    mtime = cf.stat().st_mtime
+                    age = now.timestamp() - mtime
+                    if age > stale_threshold:
+                        stale_files.append(cf.name)
+                except Exception:
+                    pass
+            if stale_files:
+                print(f"  [提示] 检测到过期缓存文件: {', '.join(stale_files)}")
+                print(f"         过期缓存可能导致刮削结果为空，建议使用 --clear-cache 清除后重试")
+            else:
+                print(f"  [提示] 检测到缓存文件，刮削会使用已有缓存（使用 --clear-cache 可清除）")
+        if args_clear_cache and cache_files:
+            for cf in cache_files:
+                try:
+                    cf.unlink()
+                    print(f"  已清除缓存: {cf.name}")
+                except Exception:
+                    pass
+            # 重新初始化刮削器的缓存
+            if netease_scraper:
+                netease_scraper.cache.clear()
+            if scraper:
+                scraper.cache.clear()
+
         scraped_mb_count = 0
         scraped_kugou_count = 0
         scraped_netease_count = 0
         need_scrape_items = [(i, m) for i, m in enumerate(all_meta)
-                             if (not m.get('album') or not m.get('year'))
-                             and m['artist'] != '未知歌手']
+                             if (not m.get('album') or not m.get('year'))]
 
         if need_scrape_items:
             # 构建可用刮削器列表
@@ -1142,11 +1206,13 @@ def organize(source_dir, output_dir, name_map_path,
                 # 线程安全：每个刮削器只在自己的线程中被调用，无竞态
                 results_lock = threading.Lock()
                 all_results = {}  # scraper_name -> [(orig_i, enriched_meta), ...]
+                # 实时计数器：记录每个刮削器已处理的歌曲数（用于进度条）
+                processed_count = {}  # scraper_name -> int
 
                 def _run_scraper(scraper_obj, name, songs):
-                    """单刮削器线程：串行处理所有歌曲，线程安全"""
+                    """单刮削器线程：串行处理所有歌曲，实时更新结果"""
                     local_results = []
-                    for orig_i, meta in songs:
+                    for idx, (orig_i, meta) in enumerate(songs):
                         try:
                             if name == 'musicbrainz':
                                 enriched, changed = scraper_obj.enrich_metadata(
@@ -1158,6 +1224,9 @@ def organize(source_dir, output_dir, name_map_path,
                                 local_results.append((orig_i, enriched))
                         except Exception:
                             pass
+                        # 每处理完一首就更新共享计数器，使进度条实时反映
+                        with results_lock:
+                            processed_count[name] = idx + 1
                     with results_lock:
                         all_results[name] = local_results
 
@@ -1165,6 +1234,7 @@ def organize(source_dir, output_dir, name_map_path,
                 threads = []
                 for name, scraper_obj in available_scrapers.items():
                     songs = [(i, m) for i, m in need_scrape_items]
+                    processed_count[name] = 0
                     t = threading.Thread(
                         target=_run_scraper,
                         args=(scraper_obj, name, songs),
@@ -1173,18 +1243,20 @@ def organize(source_dir, output_dir, name_map_path,
                     t.start()
                     threads.append(t)
 
-                # 等所有线程完成
+                # 等所有线程完成，进度条基于所有刮削器的平均进度
+                num_scrapers = len(available_scrapers)
                 bar = ProgressBar("刮削补全  ", len(need_scrape_items), unit="首")
                 processed = 0
                 while any(t.is_alive() for t in threads):
                     time.sleep(0.5)
-                    # 粗略估算进度
-                    new_processed = 0
+                    # 基于所有刮削器的平均已处理数计算进度
+                    total_processed_all = 0
                     with results_lock:
                         for name in available_scrapers:
-                            new_processed = max(new_processed, len(all_results.get(name, [])))
-                    if new_processed > processed:
-                        processed = new_processed
+                            total_processed_all += processed_count.get(name, 0)
+                    avg_processed = total_processed_all // num_scrapers if num_scrapers > 0 else 0
+                    if avg_processed > processed:
+                        processed = avg_processed
                         bar.update(min(processed, len(need_scrape_items)))
                 bar.finish()
 
@@ -1560,6 +1632,7 @@ if __name__ == '__main__':
     parser.add_argument('--scrape', action='store_true', help='启用MusicBrainz网络刮削')
     parser.add_argument('--fingerprint', action='store_true', help='启用音频指纹识别')
     parser.add_argument('--no-network', action='store_true', help='禁用所有网络功能')
+    parser.add_argument('--clear-cache', action='store_true', help='清除刮削缓存文件后重新刮削')
 
     args = parser.parse_args()
 
@@ -1574,4 +1647,5 @@ if __name__ == '__main__':
         use_scrape=args.scrape and use_network,
         use_fingerprint=args.fingerprint,
         use_network_artist=use_network,
+        clear_cache=args.clear_cache,
     )

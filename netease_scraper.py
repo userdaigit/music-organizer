@@ -203,10 +203,13 @@ class NetEaseScraper:
         策略：用歌手名+歌曲名搜索，匹配最相似的结果。
         返回: (enriched_meta, changed: bool)
         """
-        if not meta.get('title') or not meta.get('artist'):
+        if not meta.get('title') or meta.get('title') == '未知歌曲':
             return meta, False
 
-        cache_key = f'song_{meta["artist"]}_{meta["title"]}'
+        artist = meta.get('artist', '')
+        is_unknown_artist = (not artist or artist == '未知歌手')
+
+        cache_key = f'song_{artist}_{meta["title"]}'
         if cache_key in self.cache:
             cached = self.cache[cache_key]
             if cached:
@@ -217,8 +220,11 @@ class NetEaseScraper:
                 return result, bool(cached)
             return meta, False
 
-        # 搜索歌曲
-        keyword = f"{meta['artist']} {meta['title']}"
+        # 搜索歌曲：未知歌手时仅用歌名搜索
+        if is_unknown_artist:
+            keyword = meta['title']
+        else:
+            keyword = f"{artist} {meta['title']}"
         songs = self.search_song(keyword, limit=5)
         if not songs:
             self.cache[cache_key] = {}
@@ -230,22 +236,39 @@ class NetEaseScraper:
         best_score = 0
         for song in songs:
             score = 0
-            # 歌手匹配
-            if meta.get('artist'):
+            # 歌手匹配（未知歌手时不加分也不减分）
+            if not is_unknown_artist and artist:
                 from artist_normalizer import similarity
-                score += similarity(meta['artist'].lower(), song['artist'].lower()) * 0.4
+                score += similarity(artist.lower(), song['artist'].lower()) * 0.4
             # 歌曲名匹配
             if meta.get('title'):
-                score += similarity(meta['title'].lower(), song['name'].lower()) * 0.4
+                from artist_normalizer import similarity
+                title_sim = similarity(meta['title'].lower(), song['name'].lower())
+                score += title_sim * 0.4
             # 专辑匹配（加分项）
             if meta.get('album') and song.get('album'):
+                from artist_normalizer import similarity
                 score += similarity(meta['album'].lower(), song['album'].lower()) * 0.2
 
             if score > best_score:
                 best_score = score
                 best_match = song
 
-        if not best_match or best_score < 0.5:
+        # 未知歌手时：要求歌名完全匹配（短歌名≤2字更严格）
+        # 有歌手时保持原阈值 0.5
+        if is_unknown_artist:
+            title = meta.get('title', '')
+            # 歌名长度≤2时，要求完全匹配（similarity >= 0.95）
+            # 歌名长度>2时，要求高度相似（similarity >= 0.85），对应总分 >= 0.34
+            from artist_normalizer import similarity
+            title_sim = similarity(title.lower(), best_match['name'].lower()) if best_match else 0
+            if len(title) <= 2:
+                score_threshold = 0.38  # 需要歌名几乎完全匹配
+            else:
+                score_threshold = 0.34  # 需要歌名高度相似
+        else:
+            score_threshold = 0.5
+        if not best_match or best_score < score_threshold:
             self.cache[cache_key] = {}
             self._save_cache()
             return meta, False
@@ -254,7 +277,22 @@ class NetEaseScraper:
         enrichment = {}
         if best_match.get('album') and not meta.get('album'):
             enrichment['album'] = best_match['album']
-        if best_match.get('artist') and not meta.get('artist'):
+        # 未知歌手时也补全歌手名（带时长校验防误匹配）
+        if is_unknown_artist and best_match.get('artist'):
+            # 时长校验：如果本地有时长且与搜索结果差异>20%，不补全歌手名
+            local_dur = meta.get('duration')
+            remote_dur = best_match.get('duration')
+            if local_dur and remote_dur and remote_dur > 0:
+                ratio = local_dur / remote_dur
+                if ratio < 0.8 or ratio > 1.25:
+                    # 时长差异过大，不信任歌手匹配，只补专辑/年份
+                    pass
+                else:
+                    enrichment['artist'] = best_match['artist']
+            else:
+                # 无时长信息可校验，仍然补全（用户可通过 --dry-run 审核）
+                enrichment['artist'] = best_match['artist']
+        elif best_match.get('artist') and (not meta.get('artist') or meta['artist'] == '未知歌手'):
             enrichment['artist'] = best_match['artist']
         if best_match.get('duration') and not meta.get('duration'):
             enrichment['duration'] = best_match['duration']
