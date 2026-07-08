@@ -106,6 +106,31 @@ def _extract_year_from_string(text):
 
 
 # ============================================================
+# 演唱会/Live 检测（修复 Bug Q/W）
+# ============================================================
+# 匹配路径中包含"演唱会"/"Live"/"Concert"的目录或文件名
+# project_memory 硬约束：Must skip directory names containing '演唱会', 'Live', or 'Concert'
+# 用户决策：演唱会作为类似专辑复制，文件夹名前加"演唱会-"标识，不混入录音室专辑
+CONCERT_PATTERN = re.compile(r'演唱会|Live|Concert', re.IGNORECASE)
+
+
+def detect_concert(filepath):
+    """
+    检测文件路径是否属于演唱会/Live/Concert 资源。
+    扫描路径的所有父目录名和文件名，只要任一包含关键词即判定为演唱会。
+    返回: True/False
+    """
+    try:
+        parts = list(filepath.parts)
+    except Exception:
+        parts = str(filepath).replace('\\', '/').split('/')
+    for p in parts:
+        if CONCERT_PATTERN.search(p):
+            return True
+    return False
+
+
+# ============================================================
 # feat. 识别
 # ============================================================
 def parse_feat(text):
@@ -212,8 +237,21 @@ def parse_filename(filepath):
                 # 剩余所有段合并为 title，避免截断
                 result['title'] = '.'.join(dot_parts[2:])
         elif len(dot_parts) == 2:
-            result['artist'] = dot_parts[0]
-            result['title'] = dot_parts[1]
+            # 修复(Bug X)：整轨文件（如 "张学友.饿狼传说 LPCD1630.flac"）无单曲 title，
+            # 第二段实际是专辑名。启发式：含音质标识或长度>15时识别为整轨。
+            second = dot_parts[1]
+            is_whole_album = (
+                re.search(r'\b(LPCD|SACD|DSD|K2HD|HQCD|HDCD|CD|APE|FLAC|WAV)\b',
+                          second, re.IGNORECASE)
+                or len(second) > 15
+            )
+            if is_whole_album:
+                result['artist'] = dot_parts[0]
+                result['album'] = second
+                result['title'] = '未知'
+            else:
+                result['artist'] = dot_parts[0]
+                result['title'] = second
         else:
             # 尝试按下划线分割（如 "简单爱_周杰伦"）
             us_parts = [p.strip() for p in stem.split('_') if p.strip()]
@@ -473,21 +511,76 @@ def _clean_album_name(album):
             # 确保第一段是歌手名（2-4个中文字符）
             if 2 <= len(parts[0].strip()) <= 4:
                 name = parts[1].strip()
-    # 去除 CD 数量后缀: "3CD", "2CD", "4CD"
-    name = re.sub(r'\s*\d*\s*CD\s*', '', name, flags=re.IGNORECASE)
+    # 修复(Bug R/X)：去除 CD 数量后缀 "3CD"/"2CD"/"CD1"/"CD 2"/"Disc 1"
+    # 原正则 `\s*\d*\s*CD\s*` 只删 CD 前的数字，不删后面的，导致 "演唱会CD2" → "演唱会2"
+    # 且会误伤 "LPCD1630"（删掉 CD 后残留 LP1630）
+    # 新正则：CD 前后数字都删，且 CD 后不能跟字母（避免误伤 LPCD/HCDC 等），但可跟数字
+    name = re.sub(r'\s*\d*\s*CD(?![A-Za-z])\s*\d*\s*', ' ', name, flags=re.IGNORECASE)
+    name = re.sub(r'\s*Disc\s*\d+\s*', ' ', name, flags=re.IGNORECASE)
+    # 去除末尾裸碟号: "专辑名1"/"专辑名2"（来自源标签的碟号拼接，如 "Eason's Life1"）
+    # 仅当末尾是单数字且前面是字母或中文时才去除（避免误伤 "21"/"1989" 等数字专辑名）
+    name = re.sub(r'(?<=[A-Za-z\u4e00-\u9fff])\d{1,2}$', '', name)
     # 去除版本标注: "引进版", "日本版", "港版", "内地版"
     name = re.sub(r'\s*(引进版|日本版|港版|内地版|台版|欧美版|韩版|日版)\s*', '', name)
     # 去除音质标注: "SACD", "DSD", "K2HD", "24K GOLD", "HQCD", "HQ"
-    name = re.sub(r'\s*(SACD|DSD|K2HD|24K\s*GOLD|HQCD|HQ|HDCD)\s*', '', name, flags=re.IGNORECASE)
+    name = re.sub(r'\s*(SACD|DSD|K2HD|24K\s*GOLD|HQCD|HQ|HDCD|LPCD)\s*', ' ', name, flags=re.IGNORECASE)
+    # 合并多余空格
+    name = re.sub(r'\s+', ' ', name).strip()
     # 去除末尾的点和空格
     name = name.strip('. ')
     return name if name else album
 
 
+# 修复(Bug T)：合辑名/榜单名模式，刮削器返回这些名称时拒绝采纳
+COMPILATION_ALBUM_PATTERNS = re.compile(
+    r'热门华语|热门单曲|热门英文|精选合辑|国语精选|华语精选|'
+    r'Top\s*\d+|Billboard\s*\d+|'
+    r'^\d{0,4}大碟$|^\d{0,4}金曲$|'
+    r'热门\d+|Best\s*\d+|Greatest\s*Hits',
+    re.IGNORECASE
+)
+
+
+def _is_compilation_album(name):
+    """检测专辑名是否为合辑/榜单名（Bug T）"""
+    if not name:
+        return False
+    return bool(COMPILATION_ALBUM_PATTERNS.search(name))
+
+
+# 修复(Bug S)：智能融合专辑名 —— tag 与目录名对比，取更可靠的
+def _choose_better_album(tag_album, dir_album):
+    """
+    智能选择更可靠的专辑名。
+    启发式规则：
+      1. 空值/未知 → 用另一个
+      2. tag 含裸碟号后缀（如 "Life1"）→ 用目录名
+      3. tag 是合辑名 → 用目录名
+      4. tag 与目录名相似度 < 0.3 → 用目录名（明显是不同专辑，目录名更可靠）
+      5. 目录名比 tag 更"脏"（含年份/CD号/歌手名前缀）→ 用 tag
+      6. 否则用 tag（保持原优先级，向后兼容）
+    """
+    if not tag_album or tag_album in ('未知', '未知专辑'):
+        return dir_album or tag_album or ''
+    if not dir_album:
+        return tag_album
+    # tag 含裸碟号后缀
+    if re.search(r'[A-Za-z\u4e00-\u9fff]\d{1,2}$', tag_album):
+        return dir_album
+    # tag 是合辑名
+    if _is_compilation_album(tag_album):
+        return dir_album
+    # 相似度
+    sim = similarity(tag_album.lower().strip(), dir_album.lower().strip())
+    if sim < 0.3:
+        return dir_album
+    return tag_album
+
+
 # 非歌手名模式（这些词被误识别为歌手时，应替换为"未知歌手"）
 NON_ARTIST_PATTERNS = re.compile(
     r'^(\d+$|'
-    r'\d+\s*[-._]?\s*\w+.*$|'  # "13 Bleed it Out" / "13 - Bleed it Out" / "01.One Step Closer" 等数字开头的歌曲名
+    r'\d+\s*[-._]\s*\w+.*$|'  # 修复(Bug J)：原 `[-._]?` 可选分隔符误杀 "10 Years"/"3 Doors Down" 等数字开头乐队名；改为必须显式分隔符
     r'Single$|Singles$|EP$|Albums?$|专辑$|合集$|无损合集$'
     r'|vol\.?\d*$|volume\s*\d*$'
     r'|BONUS$|Bonus$|EXTRA$|Extra$'
@@ -517,6 +610,9 @@ def _filter_non_artist(name):
     if not name:
         return '未知歌手'
     name = name.strip()
+    # 修复(Bug J)：name_map 中的已知歌手（含数字开头乐队如 "10 Years"）一律保护，不过滤
+    if name in _GLOBAL_NAME_MAP_KEYS:
+        return name
     if NON_ARTIST_PATTERNS.match(name):
         return '未知歌手'
     if VARIOUS_ARTIST_PATTERNS.match(name):
@@ -526,13 +622,11 @@ def _filter_non_artist(name):
     # 过长名字（>25字符）可能是歌曲名/专辑名而非歌手名
     if len(name) > 25:
         return '未知歌手'
-    # 数字+歌曲名模式（如 "13 Bleed it Out", "04 In the End", "01 One Step Closer"）
-    # 这些通常是单曲目录名被误识别为歌手名
-    if re.match(r'^\d{1,3}\s+\w+.*$', name):
-        return '未知歌手'
-    # 数字+分隔符+内容，且内容部分是已知歌曲名
-    if re.match(r'^\d{1,3}\s*[-._]\s*', name):
-        content = re.sub(r'^\d{1,3}\s*[-._]\s*', '', name).strip()
+    # 修复(Bug J)：原 `re.match(r'^\d{1,3}\s+\w+.*$', name)` 过于宽泛，
+    # 误杀 "10 Years"/"3 Doors Down"/"4 Non Blondes" 等数字开头乐队名。
+    # 改为：数字+(空格或分隔符)+内容，仅当内容是已知歌曲名时才过滤。
+    if re.match(r'^\d{1,3}\s*[-._ ]\s*', name):
+        content = re.sub(r'^\d{1,3}\s*[-._ ]\s*', '', name).strip()
         known_song_names = [
             'bleed it out', 'in the end', 'one step closer', 'new divide',
             'papercut', 'numb', 'faint', 'crawling', 'what i\'ve done',
@@ -635,16 +729,26 @@ def extract_metadata(filepath, encoding_fixed_count=None):
     album = normalize_text(album)
     album = _clean_album_name(album)
 
+    # 修复(Bug S)：智能融合专辑名 —— tag 与目录名对比，取更可靠的
+    # 演唱会/tag专辑名可疑时，目录名更可靠
+    dir_album_raw = normalize_text(dir_info.get('album', '') or '')
+    if dir_album_raw:
+        dir_album_clean = _clean_album_name(dir_album_raw)
+        if dir_album_clean and dir_album_clean != album:
+            album = _choose_better_album(album, dir_album_clean)
+
     year = tags.get('date') or fname.get('year') or dir_info.get('year') or ''
     if year:
         year_match = re.search(r'(\d{4})', year)
         if year_match:
             year = year_match.group(1)
 
-    # 年份校验：拒绝当前年份（刮削器可能返回错误年份）
+    # 年份校验：拒绝未来年份（明显无效）；保留当前年份（可能是合法发行）
+    # 修复(Bug G)：原代码 `if year == current_year` 无条件丢弃当前年份，
+    # 导致今年发行的歌曲年份被清空。
     current_year = str(datetime.now().year)
-    if year == current_year:
-        year = ''  # 不信任当前年份，留空让刮削器补全
+    if year and year.isdigit() and int(year) > int(current_year):
+        year = ''  # 未来年份无效，留空让刮削器补全
 
     track = tags.get('tracknumber') or fname.get('track') or ''
     if track:
@@ -662,6 +766,7 @@ def extract_metadata(filepath, encoding_fixed_count=None):
         'tag_source': 'tags' if tags.get('title') else 'filename',
         'encoding_fixed': was_fixed,
         'dir_artist': normalize_text(dir_info.get('artist', '')),  # 目录推断的歌手，用于保持专辑完整性
+        'is_concert': detect_concert(filepath),  # 标记演唱会资源：文件夹名前加"演唱会-"标识+不触发刮削改写
     }
 
     # 处理标题中的 feat.
@@ -741,7 +846,11 @@ def sanitize(name):
     # 过滤文件名非法字符（替换为下划线）
     name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', name)
     name = re.sub(r'\s+', ' ', name).strip()
-    name = name.strip('. ')
+    # 修复(Bug O)：保留缩写中的合法尾点（如 F.I.R.、G.E.M.）。
+    # 首部点始终是装饰性的，去除；尾部点仅在非"单字母+点"缩写模式时去除。
+    name = name.lstrip('. ')
+    if not re.search(r'([A-Za-z]\.){2,}$', name):
+        name = name.rstrip('. ')
     if len(name) > 80:
         name = name[:80]
     return name if name else '未知'
@@ -754,8 +863,119 @@ def sanitize(name):
 ALBUM_MIN_TRACKS = 3
 
 
-# 全局国籍表，由 organize() 加载时填充
+# 全局国籍表，由 organize() 加载时填充（键为 display 名）
 _GLOBAL_NATIONALITIES = {}
+
+# 全局 name_map 键集合，由 organize() 加载时填充（用于 _filter_non_artist 保护已知歌手）
+_GLOBAL_NAME_MAP_KEYS = set()
+
+# 全局 name_map 完整映射，由 organize() 加载时填充（用于 _short_artist_name 反查 display 名）
+# 修复(Bug P)：_GLOBAL_NATIONALITIES 只含 display 名键，别名/繁体/变体需经 name_map 反查
+_GLOBAL_NAME_MAP = {}
+
+
+def _lookup_nationality(name):
+    """
+    多层反查国籍信息（修复 Bug P/U）。
+    _GLOBAL_NATIONALITIES 的键是 display 名（如 "周杰伦-Jay Chou"），
+    但传入的 name 可能是别名/原标签名/繁体名/变体/带空格，导致直接 .get() miss。
+    查询顺序：
+      1. 直接查 _GLOBAL_NATIONALITIES[name]
+      2. 通过 _GLOBAL_NAME_MAP 反查：name -> display -> nationality
+      3. 繁简转换后再查（如 "陳奕迅" -> "陈奕迅"）
+      4. 去除中文间空格后查（如 "中島 美雪" -> "中岛美雪"）（修复 Bug U）
+      5. 大小写不敏感查
+    返回: "cn" / "foreign" / None
+    """
+    if not name:
+        return None
+
+    def _try_query(n):
+        """单次查询：直接查 + name_map 反查"""
+        if not n:
+            return None
+        r = _GLOBAL_NATIONALITIES.get(n)
+        if r:
+            return r
+        display = _GLOBAL_NAME_MAP.get(n)
+        if display:
+            r = _GLOBAL_NATIONALITIES.get(display)
+            if r:
+                return r
+        return None
+
+    # 1. 直接命中
+    n = _try_query(name)
+    if n:
+        return n
+    # 2. 繁简转换 + 特殊字符规范化后查
+    try:
+        simplified = normalize_text(name)
+        if simplified != name:
+            n = _try_query(simplified)
+            if n:
+                return n
+    except Exception:
+        pass
+    # 3. 修复(Bug U)：去除中文之间的空格后查（如 "中島 美雪" -> "中岛美雪"）
+    # 仅去除 CJK 字符之间的空格，保留英文单词间的空格
+    no_cjk_space = re.sub(r'(?<=[\u4e00-\u9fff\u3040-\u30ff])\s+(?=[\u4e00-\u9fff\u3040-\u30ff])', '', name)
+    if no_cjk_space != name:
+        n = _try_query(no_cjk_space)
+        if n:
+            return n
+        # 再做繁简转换
+        try:
+            simplified2 = normalize_text(no_cjk_space)
+            if simplified2 != no_cjk_space:
+                n = _try_query(simplified2)
+                if n:
+                    return n
+        except Exception:
+            pass
+    # 4. 大小写不敏感查（针对英文歌手名变体，如 "linkin park" vs "Linkin Park"）
+    name_lower = name.lower()
+    for k, v in _GLOBAL_NATIONALITIES.items():
+        if k.lower() == name_lower:
+            return v
+    for alias, display in _GLOBAL_NAME_MAP.items():
+        if alias.lower() == name_lower:
+            n = _GLOBAL_NATIONALITIES.get(display)
+            if n:
+                return n
+    # 5. 修复(Bug U)：复合名按"-"拆分后逐段查（如 "Miyuki Nakajima-中島 美雪" -> 试 "Miyuki Nakajima"）
+    # 仅对长度>=3的段做查询，避免短段误匹配（如 "A-Mei" 的 "A"）
+    if '-' in name:
+        for part in name.split('-'):
+            part = part.strip()
+            if len(part) < 3:
+                continue
+            n = _try_query(part)
+            if n:
+                return n
+            # 每段也做去 CJK 空格 + 繁简转换
+            part_no_space = re.sub(r'(?<=[\u4e00-\u9fff\u3040-\u30ff])\s+(?=[\u4e00-\u9fff\u3040-\u30ff])', '', part)
+            if part_no_space != part:
+                n = _try_query(part_no_space)
+                if n:
+                    return n
+                try:
+                    simplified3 = normalize_text(part_no_space)
+                    if simplified3 != part_no_space:
+                        n = _try_query(simplified3)
+                        if n:
+                            return n
+                except Exception:
+                    pass
+            try:
+                simplified4 = normalize_text(part)
+                if simplified4 != part:
+                    n = _try_query(simplified4)
+                    if n:
+                        return n
+            except Exception:
+                pass
+    return None
 
 
 def _short_artist_name(name):
@@ -765,12 +985,12 @@ def _short_artist_name(name):
     外国歌手(外文名-中文译名): 只保留外文原名，如 "Linkin Park-林肯公园" -> "Linkin Park"
     纯英文名中国歌手(如 S.H.E): 保持原样
     无分隔符: 直接返回原名
-    优先使用 _GLOBAL_NATIONALITIES 中的国籍信息。
+    优先使用 _GLOBAL_NATIONALITIES 中的国籍信息（多层反查，修复 Bug P）。
     """
     if not name:
         return name
-    # 优先使用国籍表
-    nationality = _GLOBAL_NATIONALITIES.get(name)
+    # 优先使用国籍表（多层反查）
+    nationality = _lookup_nationality(name)
     if nationality == 'cn':
         # 中国歌手：取中文名（如果有）
         if '-' in name:
@@ -816,10 +1036,20 @@ def build_target_path(meta, is_singleton, artist_canonical):
     album = sanitize(meta.get('album')) or ''
 
     # 群星歌曲：歌手名含3个或更多歌手时，目录名用"群星"避免路径过长
-    if artist.count('.') + artist.count(',') + artist.count('、') >= 2:
+    # 修复(Bug D)：原逻辑用 count('.')>=2 误判 S.H.E/F.I.R./G.E.M. 为群星。
+    # 新逻辑：按分隔符(./,/、)切分，仅当切出3+段且非全单字母缩写时才判为群星；
+    # 且基于 artist_display（目录规范名）而非 tag artist 判断。
+    _sep_parts = re.split(r'[.,、]', artist_display)
+    _sep_parts = [p.strip() for p in _sep_parts if p.strip()]
+    _is_multi_artist = (len(_sep_parts) >= 3 and not all(len(p) == 1 for p in _sep_parts))
+    if _is_multi_artist:
         artist_dir = '群星'
     else:
         artist_dir = artist_display  # 目录名保持完整格式
+
+    # 演唱会/Live/Concert 资源：作为类似专辑复制，文件夹名前加"演唱会-"标识
+    # 避免演唱会歌曲混入录音室专辑目录，同时保持专辑结构
+    is_concert = meta.get('is_concert', False)
 
     # 文件名中的歌手用简化名（中国歌手只中文名，外国歌手只外文名）
     artist_short = _short_artist_name(artist_display)
@@ -837,7 +1067,8 @@ def build_target_path(meta, is_singleton, artist_canonical):
         feat_artist = _short_artist_name(tag_artist)
 
     if is_singleton:
-        album_part = '其他'
+        # 演唱会单曲归入 歌手/演唱会-其他/
+        album_part = '演唱会-其他' if is_concert else '其他'
         # 单曲也带上专辑名（如果有）
         if album:
             filename = f"{track_prefix}{title}-{artist_short}-{album}"
@@ -846,6 +1077,9 @@ def build_target_path(meta, is_singleton, artist_canonical):
     else:
         year = meta.get('year') or '未知'
         album_part = f"{year}-{album or '未知专辑'}"
+        # 演唱会专辑：文件夹名前加"演唱会-"标识，如 歌手/演唱会-2013-Eason's Life/
+        if is_concert:
+            album_part = f"演唱会-{album_part}"
         # 专辑歌曲：用简化歌手名
         filename = f"{track_prefix}{title}-{artist_short}-{album}"
 
@@ -911,7 +1145,9 @@ def deduplicate_songs(songs, source_dir):
                 if h:
                     song['_hash'] = h
                 else:
-                    song['_hash'] = f"nofp_{song['title']}"
+                    # 修复(Bug K)：原用 title 作为回退，导致同名不同内容文件被误判为重复而删除。
+                    # 改用 source_path（每文件唯一），确保哈希失败时不误删。
+                    song['_hash'] = f"nofp_{song['source_path']}"
 
             # 按哈希分组
             hash_groups = defaultdict(list)
@@ -1075,11 +1311,44 @@ def organize(source_dir, output_dir, name_map_path,
     global _GLOBAL_NATIONALITIES
     _GLOBAL_NATIONALITIES = artist_nationalities
 
+    # 填充全局 name_map 键集合，供 _filter_non_artist() 保护已知歌手（修复 Bug J）
+    global _GLOBAL_NAME_MAP_KEYS
+    _GLOBAL_NAME_MAP_KEYS = set(name_map.keys())
+
+    # 填充全局 name_map 完整映射，供 _short_artist_name() 反查 display 名（修复 Bug P）
+    global _GLOBAL_NAME_MAP
+    _GLOBAL_NAME_MAP = name_map
+
     config_dir = Path(name_map_path).parent
     args_clear_cache = clear_cache
 
     # 初始化各模块
     print("[初始化] 加载模块...")
+
+    # --clear-cache: 在模块初始化前清除全部缓存文件（修复：原逻辑只清2个且时机太晚）
+    # 覆盖全部5个缓存：artist_cache / scraper_cache / netease_cache / fingerprint_cache / shazam_cache
+    if args_clear_cache:
+        cache_file_names = [
+            'artist_cache.json',
+            'scraper_cache.json',
+            'netease_cache.json',
+            'fingerprint_cache.json',
+            'shazam_cache.json',
+        ]
+        cleared = []
+        for cfn in cache_file_names:
+            cf = config_dir / cfn
+            if cf.exists():
+                try:
+                    cf.unlink()
+                    cleared.append(cfn)
+                except Exception as e:
+                    print(f"  清除缓存失败 {cfn}: {e}")
+        if cleared:
+            print(f"  已清除全部缓存: {', '.join(cleared)}")
+        else:
+            print(f"  无缓存文件可清除")
+
     # 删除旧的歌手缓存（name_map 更新后需要重新查询）
     artist_cache_file = config_dir / 'artist_cache.json'
     if artist_cache_file.exists():
@@ -1347,18 +1616,7 @@ def organize(source_dir, output_dir, name_map_path,
                 print(f"         过期缓存可能导致刮削结果为空，建议使用 --clear-cache 清除后重试")
             else:
                 print(f"  [提示] 检测到缓存文件，刮削会使用已有缓存（使用 --clear-cache 可清除）")
-        if args_clear_cache and cache_files:
-            for cf in cache_files:
-                try:
-                    cf.unlink()
-                    print(f"  已清除缓存: {cf.name}")
-                except Exception:
-                    pass
-            # 重新初始化刮削器的缓存
-            if netease_scraper:
-                netease_scraper.cache.clear()
-            if scraper:
-                scraper.cache.clear()
+        # 注：--clear-cache 已在模块初始化前清除全部缓存，此处无需再处理
 
         scraped_mb_count = 0
         scraped_kugou_count = 0
@@ -1465,9 +1723,23 @@ def organize(source_dir, output_dir, name_map_path,
 
                 # 应用结果
                 for orig_i, (enriched, src_name) in merged.items():
+                    orig_meta = all_meta[orig_i]
                     # 刮削器补全的 artist 可能包含非歌手信息，需要过滤
                     if enriched.get('artist'):
                         enriched['artist'] = _filter_non_artist(enriched['artist'])
+                    # 修复(Bug T)：拒绝刮削返回的合辑名/榜单名
+                    if enriched.get('album') and _is_compilation_album(enriched['album']):
+                        enriched['album'] = orig_meta.get('album', '')
+                    # 修复(Bug W)：演唱会文件不让刮削覆盖 album（演唱会 tag 不可靠，
+                    # 且刮削器容易匹配到录音室版本）
+                    if orig_meta.get('is_concert') and enriched.get('album'):
+                        # 演唱会只补 year，不覆盖 album
+                        enriched['album'] = orig_meta.get('album', '')
+                    # 修复(Bug W)：演唱会文件不让刮削覆盖 artist（避免被改成录音室原唱）
+                    if orig_meta.get('is_concert') and enriched.get('artist'):
+                        enriched['artist'] = orig_meta.get('artist', '')
+                    # 保留原始 is_concert 标记
+                    enriched['is_concert'] = orig_meta.get('is_concert', False)
                     all_meta[orig_i] = enriched
                     if src_name == 'netease':
                         scraped_netease_count += 1
@@ -1492,31 +1764,50 @@ def organize(source_dir, output_dir, name_map_path,
         print()
         print("[4/8] 网络刮削: 跳过(未启用)")
 
-    # 4b. 刮削后二次歌手规范化（刮削器可能补全了新的歌手名）
-    if args.scrape:
+    # 4b. 刮削后二次歌手规范化（刮削器可能补全了新的歌手名；含 dir_artist）
+    if use_scrape:
         print()
         print("[4b/8] 刮削后歌手名规范化...")
-        post_scrape_artists = sorted(set(
-            m['artist'] for m in all_meta
-            if m['artist'] != '未知歌手' and m['artist'] not in artist_mapping
-        ))
+        # 修复(Bug H)：不再用 "not in artist_mapping" 过滤——刮削器可能把已规范名
+        # 重置为原名（如 "Jay Chou"），而 "Jay Chou" 恰是 artist_mapping 的键会被跳过。
+        # 改为收集所有非未知歌手名，normalize_one 对已规范名幂等。
+        # 修复(Bug B)：同时规范化 dir_artist。
+        post_scrape_artists = set()
+        for m in all_meta:
+            a = m.get('artist', '')
+            if a and a != '未知歌手':
+                post_scrape_artists.add(a)
+            d = m.get('dir_artist', '')
+            if d and d != '未知歌手' and d != '未知':
+                post_scrape_artists.add(d)
+        post_scrape_artists = sorted(post_scrape_artists)
         if post_scrape_artists:
             post_bar = ProgressBar("歌手规范(后)", len(post_scrape_artists), unit="位")
             post_scrape_mapping = {}
             for i, artist in enumerate(post_scrape_artists):
-                post_scrape_mapping[artist] = artist_normalizer.normalize_one(artist)
+                # 先过滤非歌手名（Various Artists / 未知 / 数字开头歌曲名等）
+                filtered = _filter_non_artist(artist)
+                if filtered != artist:
+                    post_scrape_mapping[artist] = filtered
+                else:
+                    post_scrape_mapping[artist] = artist_normalizer.normalize_one(artist)
                 post_bar.update(i + 1)
             post_bar.finish()
-            # 应用二次映射
+            # 应用二次映射到 artist 和 dir_artist
             applied = 0
             for meta in all_meta:
-                if meta['artist'] in post_scrape_mapping:
-                    new_artist = post_scrape_mapping[meta['artist']]
-                    if new_artist != meta['artist']:
-                        meta['artist'] = new_artist
-                        applied += 1
+                a = meta.get('artist', '')
+                if a in post_scrape_mapping and post_scrape_mapping[a] != a:
+                    meta['artist'] = post_scrape_mapping[a]
+                    applied += 1
+                d = meta.get('dir_artist', '')
+                if d and d != '未知' and d in post_scrape_mapping and post_scrape_mapping[d] != d:
+                    meta['dir_artist'] = post_scrape_mapping[d]
+                    applied += 1
+            # 合并到 artist_mapping（供步骤7 build_target_path 使用）
+            artist_mapping.update(post_scrape_mapping)
             if applied > 0:
-                print(f"  二次规范化: {applied} 首歌曲的歌手名已修正")
+                print(f"  二次规范化: {applied} 处歌手名已修正")
 
     # 5. 音频指纹识别（信息全缺的歌曲）
     # 优先级: Shazam → AcoustID
@@ -1585,6 +1876,56 @@ def organize(source_dir, output_dir, name_map_path,
     else:
         print()
         print("[5/8] 音频指纹: 跳过(未启用)")
+
+    # 5b. 最终统一规范化收口（架构层修复 Bug B/C）
+    #     指纹识别(Shazam/AcoustID)和刮削器可能引入未经规范化的新歌手名
+    #     （繁体、别名、Various Artists 变体等），历次修补只在步骤3/4b做局部规范化，
+    #     新增富集步骤后就又漏。此处作为分组前的最终收口：
+    #     对 meta['artist'] 和 meta['dir_artist'] 统一过
+    #     _filter_non_artist → artist_normalizer.normalize_one → name_map 兜底，
+    #     再更新 artist_mapping 供步骤7 build_target_path 使用。
+    print()
+    print("[5b/8] 最终统一规范化收口...")
+    final_collect = set()
+    for m in all_meta:
+        a = m.get('artist', '')
+        if a and a != '未知歌手':
+            final_collect.add(a)
+        d = m.get('dir_artist', '')
+        if d and d != '未知歌手' and d != '未知':
+            final_collect.add(d)
+    final_mapping = {}
+    if final_collect:
+        bar = ProgressBar("歌手规范(终)", len(final_collect), unit="位")
+        for i, artist in enumerate(sorted(final_collect)):
+            # 先过滤非歌手名（Various Artists / 未知 / 数字开头歌曲名等）
+            filtered = _filter_non_artist(artist)
+            if filtered != artist:
+                final_mapping[artist] = filtered
+            else:
+                normalized = artist_normalizer.normalize_one(artist)
+                # name_map 强制映射兜底（normalize_one 内部已查，此处双保险）
+                if normalized in name_map:
+                    normalized = name_map[normalized]
+                final_mapping[artist] = normalized
+            bar.update(i + 1)
+        bar.finish()
+    # 应用最终映射到 artist 和 dir_artist
+    applied_artist = 0
+    applied_dir = 0
+    for meta in all_meta:
+        a = meta.get('artist', '')
+        if a in final_mapping and final_mapping[a] != a:
+            meta['artist'] = final_mapping[a]
+            applied_artist += 1
+        d = meta.get('dir_artist', '')
+        if d and d != '未知' and d in final_mapping and final_mapping[d] != d:
+            meta['dir_artist'] = final_mapping[d]
+            applied_dir += 1
+    # 合并到 artist_mapping（步骤7用 artist_mapping.get(group_artist, group_artist) 取规范名）
+    artist_mapping.update(final_mapping)
+    if applied_artist or applied_dir:
+        print(f"  收口修正: {applied_artist} 首 artist, {applied_dir} 首 dir_artist")
 
     # 6. 分组 + 去重
     print()
@@ -1674,10 +2015,12 @@ def organize(source_dir, output_dir, name_map_path,
     bar = ProgressBar("复制文件", len(tasks), unit="首")
     for task_idx, (meta, is_singleton) in enumerate(tasks):
         try:
-            # 专辑歌曲用目录推断的歌手作为主歌手，保持专辑完整性
-            # 单曲用标签歌手
-            if not is_singleton and meta.get('dir_artist'):
-                group_artist = meta['dir_artist']
+            # 专辑歌曲和有目录推断歌手的单曲都用 dir_artist，保持归组完整性
+            # 修复(Bug I)：原代码单曲(is_singleton=True)只用 tag artist，
+            # 导致2首降级专辑歌曲散落到不同歌手目录，丢失专辑归组。
+            raw_dir = meta.get('dir_artist', '')
+            if raw_dir and raw_dir != '未知' and raw_dir != '未知歌手':
+                group_artist = raw_dir
             else:
                 group_artist = meta['artist']
             artist_canonical = artist_mapping.get(group_artist, group_artist)

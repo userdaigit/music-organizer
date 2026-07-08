@@ -253,10 +253,17 @@ class FingerprintIdentifier:
         """检查 API KEY 状态"""
         if is_default_key(self.api_key):
             self._key_status = "default"
+            return
+        # 修复(Bug E)：原代码对非默认KEY直接假设有效，从不真正验证，
+        # 导致无效KEY静默失败（识别返回None但无任何提示）。
+        # validate_api_key 使用真实测试指纹向 /lookup 发请求，能区分 KEY 有效/无效。
+        result = validate_api_key(self.api_key)
+        if result is False:
+            self._key_status = False
+        elif result is True:
+            self._key_status = True
         else:
-            # 非默认 KEY，假设有效（实际验证在首次识别时发生）
-            # AcoustID API 没有专门的 KEY 验证端点，/lookup 需要有效指纹
-            # 发送空指纹会返回 400 Bad Request，不是有效的验证方式
+            # 网络错误，无法判断 — 假设有效，让实际识别调用处理失败
             self._key_status = True
 
     def identify(self, filepath):

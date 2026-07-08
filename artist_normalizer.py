@@ -251,6 +251,22 @@ def build_artist_canonical_name(mb_result, original_name):
     name = mb_result.get('name', original_name)
     aliases = mb_result.get('aliases', [])
     country = mb_result.get('country', '').upper()
+
+    # 修复(Bug Y)：MusicBrainz 经常返回 "姓, 名" 格式（如 "Li, Xuhao"），
+    # 转换为 "名 姓" 格式（如 "Xuhao Li"）以保持一致性
+    def _fix_comma_name(n):
+        if not n or ',' not in n:
+            return n
+        parts = [p.strip() for p in n.split(',', 1)]
+        if len(parts) == 2 and parts[0] and parts[1]:
+            # 仅对英文名做转换（中文名带逗号通常是"姓,名"且不常见）
+            from encoding_fix import normalize_text
+            if detect_language(parts[0]) == 'en' and detect_language(parts[1]) == 'en':
+                return f"{parts[1]} {parts[0]}"
+        return n
+
+    name = _fix_comma_name(name)
+    aliases = [_fix_comma_name(a) for a in aliases]
     all_names = [name] + [a for a in aliases if a != name]
 
     # 分类收集各语言的名称

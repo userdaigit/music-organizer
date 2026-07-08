@@ -214,10 +214,14 @@ class NetEaseScraper:
             cached = self.cache[cache_key]
             if cached:
                 result = dict(meta)
+                # 修复(Bug M)：原 `bool(cached)` 在缓存有数据但未实际补全字段时误报 changed。
+                # 改为追踪是否有字段被真正写入。
+                changed = False
                 for k, v in cached.items():
                     if v and not result.get(k):
                         result[k] = v
-                return result, bool(cached)
+                        changed = True
+                return result, changed
             return meta, False
 
         # 搜索歌曲：未知歌手时仅用歌名搜索

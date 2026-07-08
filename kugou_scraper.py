@@ -141,8 +141,25 @@ class KugouScraper:
             if not results:
                 return meta, False
 
-        # 取最佳匹配（第一条结果）
-        best = results[0]
+        # 修复(Bug F)：原代码直接取 results[0]，无相似度校验，
+        # 搜索接口可能返回不相关结果导致错误补全（如搜"简单爱"返回"简单爱DJ版"等）。
+        # 改为按标题相似度选取最佳匹配，阈值 0.6，低于阈值则放弃补全。
+        from difflib import SequenceMatcher
+
+        def _title_sim(a, b):
+            if not a or not b:
+                return 0.0
+            return SequenceMatcher(None, a.lower().strip(), b.lower().strip()).ratio()
+
+        best = None
+        best_score = 0.0
+        for r in results:
+            score = _title_sim(title, r.get('title', ''))
+            if score > best_score:
+                best_score = score
+                best = r
+        if best is None or best_score < 0.6:
+            return meta, False
         enriched = dict(meta)
         changed = False
 

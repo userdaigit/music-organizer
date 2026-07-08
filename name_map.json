@@ -297,6 +297,7 @@
     "未知": {"display": "未知歌手", "nationality": "cn"},
     "未知歌手": {"display": "未知歌手", "nationality": "cn"},
     "中岛美雪": {"display": "Miyuki Nakajima-中岛美雪", "nationality": "foreign"},
+    "中島美雪": {"display": "Miyuki Nakajima-中岛美雪", "nationality": "foreign"},
     "中島みゆき": {"display": "Miyuki Nakajima-中岛美雪", "nationality": "foreign"},
     "Miyuki Nakajima": {"display": "Miyuki Nakajima-中岛美雪", "nationality": "foreign"},
 
@@ -304,8 +305,12 @@
     "LPU": {"display": "Linkin Park-林肯公园", "nationality": "foreign"},
     "LP": {"display": "Linkin Park-林肯公园", "nationality": "foreign"},
     "LINKIN PARK": {"display": "Linkin Park-林肯公园", "nationality": "foreign"},
-    "Linkin Park": {"display": "Linkin Park-林肯公园", "nationality": "foreign"},
     "聯合公園": {"display": "Linkin Park-林肯公园", "nationality": "foreign"},
+
+    "JAY-Z": {"display": "JAY-Z", "nationality": "foreign"},
+    "Jay-Z": {"display": "JAY-Z", "nationality": "foreign"},
+    "Jay Z": {"display": "JAY-Z", "nationality": "foreign"},
+    "JAY Z": {"display": "JAY-Z", "nationality": "foreign"},
 
     "谭咏麟": {"display": "谭咏麟-Alan Tam", "nationality": "cn"},
     "Alan Tam": {"display": "谭咏麟-Alan Tam", "nationality": "cn"},
@@ -313,9 +318,6 @@
     "Tan Yong Lin": {"display": "谭咏麟-Alan Tam", "nationality": "cn"},
     "譚詠麟-Tan Yong Lin": {"display": "谭咏麟-Alan Tam", "nationality": "cn"},
 
-    "李克勤": {"display": "李克勤-Hacken Lee", "nationality": "cn"},
-    "Hacken Lee": {"display": "李克勤-Hacken Lee", "nationality": "cn"},
-    "Lee Hak Kan": {"display": "李克勤-Hacken Lee", "nationality": "cn"},
     "Li Keqin": {"display": "李克勤-Hacken Lee", "nationality": "cn"},
     "李克勤-Li Keqin": {"display": "李克勤-Hacken Lee", "nationality": "cn"},
 
@@ -380,8 +382,6 @@
     "Mo Wen Wei": {"display": "莫文蔚-Karen Mok", "nationality": "cn"},
     "莫文蔚-Mo Wen Wei": {"display": "莫文蔚-Karen Mok", "nationality": "cn"},
 
-    "张靓颖": {"display": "张靓颖-Jane Zhang", "nationality": "cn"},
-    "Jane Zhang": {"display": "张靓颖-Jane Zhang", "nationality": "cn"},
     "Zhang Liangying": {"display": "张靓颖-Jane Zhang", "nationality": "cn"},
     "张靓颖-Zhang Liangying": {"display": "张靓颖-Jane Zhang", "nationality": "cn"},
 

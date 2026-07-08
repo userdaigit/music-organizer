@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 test_organize.py
 测试 organize_music.py 的核心函数。
@@ -496,6 +496,48 @@ def test_build_target_path_sanitizes_illegal_chars():
     assert '/' not in path.split('_')[0]  # 路径分隔符 / 保留，非法 / 被替换
     assert '?' not in path
     assert '*' not in path
+
+
+def test_build_target_path_concert_album():
+    """演唱会专辑路径：歌手/演唱会-年份-专辑/序号-歌曲名-歌手-专辑"""
+    meta = {
+        'title_display': '花花世界',
+        'artist': '陈奕迅',
+        'album': "Eason's Life",
+        'year': '2013',
+        'track': '03',
+        'is_concert': True,
+    }
+    path = build_target_path(meta, is_singleton=False, artist_canonical='陈奕迅-Eason Chan')
+    assert '演唱会-' in path
+    assert '演唱会/' not in path  # 不再使用独立子目录
+    assert path.replace(chr(92), '/') == "陈奕迅-Eason Chan/演唱会-2013-Eason's Life/03-花花世界-陈奕迅-Eason's Life"
+
+
+def test_build_target_path_concert_singleton():
+    """演唱会单曲路径：歌手/演唱会-其他/序号-歌曲名-歌手"""
+    meta = {
+        'title_display': '天涯歌女',
+        'artist': '陈奕迅',
+        'album': '',
+        'track': '05',
+        'is_concert': True,
+    }
+    path = build_target_path(meta, is_singleton=True, artist_canonical='陈奕迅-Eason Chan')
+    assert '演唱会-其他' in path
+    assert '演唱会/其他' not in path  # 不再使用独立子目录
+
+
+def test_detect_concert_various_paths():
+    """detect_concert 对各种路径的判定"""
+    from organize_music import detect_concert
+    from pathlib import Path
+    assert detect_concert(Path('/music/陈奕迅/演唱会/2013-Life/song.flac')) is True
+    assert detect_concert(Path('/music/张学友/活出生命LIVE演唱会/song.flac')) is True
+    assert detect_concert(Path('/music/周杰伦/2007世界巡回演唱会 2CD/song.flac')) is True
+    assert detect_concert(Path('/music/unknown/live at wembley/song.flac')) is True  # 全小写 live
+    assert detect_concert(Path('/music/unknown/concert recording/song.flac')) is True  # 全小写 concert
+    assert detect_concert(Path('/music/周杰伦/专辑/2001-范特西/song.flac')) is False
 
 
 # ============================================================

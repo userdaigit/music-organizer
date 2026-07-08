@@ -209,8 +209,8 @@ class MusicBrainzScraper:
         current_year = datetime.datetime.now().year
         try:
             y = int(year)
-            # 拒绝当前年份和未来年份
-            if y >= current_year:
+            # 修复(Bug G)：原 `>=` 拒绝当前年份，导致今年发行歌曲年份被丢弃。改为仅拒绝未来年份。
+            if y > current_year:
                 return False
             # 拒绝不合理的年份（早于1900）
             if y < 1900:

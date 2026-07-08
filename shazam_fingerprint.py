@@ -78,16 +78,17 @@ class ShazamIdentifier:
 
         try:
             result = _shazam_recognize(filepath)
-            if result:
-                self.cache[path_str] = result
-                self._save_cache()
-                self.last_request_time = time.time()
-                return result
+            # 修复(Bug L)：无论成功或失败都缓存，避免对同一文件重复慢速重试。
+            # 失败结果缓存为 None，下次直接跳过（用户可用 --clear-cache 清除重试）。
+            self.cache[path_str] = result
+            self._save_cache()
+            self.last_request_time = time.time()
+            return result
         except Exception:
-            pass
-
-        self.last_request_time = time.time()
-        return None
+            self.cache[path_str] = None
+            self._save_cache()
+            self.last_request_time = time.time()
+            return None
 
 
 def _shazam_recognize(filepath):

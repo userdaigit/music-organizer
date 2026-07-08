@@ -254,7 +254,7 @@ def fix_tags_encoding(tags):
 
 def normalize_text(text):
     """
-    统一文本编码：NFC 规范化 + 繁体转简体 + 清理控制字符。
+    统一文本编码：NFC 规范化 + 繁体转简体 + 清理控制字符 + 特殊字符规范化。
     """
     if not text:
         return text
@@ -264,6 +264,15 @@ def normalize_text(text):
     text = text.replace('\ufeff', '')
     # 去除控制字符（保留换行和制表符）
     text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', text)
+    # 修复(Bug V)：特殊字符规范化
+    # 非标准连字符 → 标准连字符 (U+002D)
+    # ‐ U+2010, ‑ U+2011, ‒ U+2012, – U+2013, — U+2014, ― U+2015
+    text = re.sub(r'[\u2010\u2011\u2012\u2013\u2014\u2015]', '-', text)
+    # 特殊字母规范化（用于歌手名/专辑名的统一）
+    # ÿ U+00FF → y（JAŸ-Z → JAY-Z），ÿ 不常见且常因编码错误产生
+    text = text.replace('\u00ff', 'y').replace('\u0178', 'Y')  # Ÿ → Y
+    # 全角空格 → 半角空格
+    text = text.replace('\u3000', ' ')
     # 繁体转简体
     text = convert_t2s(text)
     return text.strip()
