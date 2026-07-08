@@ -60,6 +60,9 @@ def validate_api_key(api_key=None, timeout=5):
     """
     向 AcoustID 发送测试请求验证 KEY 有效性。
 
+    使用 trackid 查询（AcoustID 官方文档示例的 track ID）而非指纹查询，
+    避免测试指纹格式问题导致误判 KEY 无效。
+
     返回:
         True  - KEY 有效
         False - KEY 无效（被拒绝）
@@ -67,14 +70,13 @@ def validate_api_key(api_key=None, timeout=5):
     """
     key = api_key or ACOUSTID_API_KEY
     try:
-        # 发送一个真实的 lookup 请求，使用 AcoustID 官方的测试指纹
-        # （来自 acoustid-python 库的示例）
-        test_fingerprint = 'AQADtQmQkJCWkCqWRIW+CRQ-JuKXHg-aF0mMJQsuDNe8FkuPNh4pEt_Ck0ePHqWEL0e0Hz--CXoiJRJqDRwiXo4dzHh3o2JxJb9wMJRxHn8KN0dxXIdzNCqYX4hyFj-FH0-OfkSPaCp8JUqRLnxiLUauH5mFXThxJkJ4NMWL4zh_XHgg9EJyE48pHsWfHUouFqGJoAl0a0aOcs_xXCFxHNqPo0cf6DleXQqOhk_x2oz4o0SfBd8yE0SuCq2I40d-6Aq5XoGSP0mCK1mUL4ceI8eXHq0-vEoMn-EUPPzhuNAf0o1z0Cz_-EH1XEqeLh8jR7z0WBn8o0_-Csc1o0MWjH4xf9DguNRqf6DhuBM6PH02PR8mJF0MJUaUY42RP9-qo3hR4s-1o8mPNEf4o3mP6wiUYzqG4zueoeaPmEe0o3iPDzmh6BqU42hzJd_xGkqPJ0e0o0J-aDmRTLiCa40fVD-e4iTw...'
+        # 使用 AcoustID 官方文档示例的 trackid 查询，不需要发送指纹
+        # 参考: https://acoustid.org/webservice#lookup_by_trackid
         params = urllib.parse.urlencode({
             'format': 'json',
             'client': key,
-            'duration': 300,
-            'fingerprint': test_fingerprint,
+            'trackid': '9ff43b6a-4f16-427c-93c2-92307ca505e0',
+            'meta': 'recordingids',
         })
         url = f"{ACOUSTID_BASE_URL}/lookup?{params}"
         req = urllib.request.Request(url, headers={'User-Agent': 'MusicOrganizer/1.2.0'})
@@ -84,12 +86,42 @@ def validate_api_key(api_key=None, timeout=5):
         if data.get('status') == 'ok':
             return True
         elif data.get('status') == 'error':
-            return False
+            # 区分 "KEY 无效" 和 "其他错误"（如 trackid 问题）
+            # 只有 KEY 相关错误才判定 KEY 无效，其他错误说明 KEY 本身有效
+            error_msg = ''
+            err = data.get('error')
+            if isinstance(err, dict):
+                error_msg = err.get('message', '')
+            elif isinstance(err, str):
+                error_msg = err
+            error_lower = error_msg.lower()
+            if 'api key' in error_lower or 'apikey' in error_lower or 'client' in error_lower:
+                return False
+            # 其他错误（如 trackid 无效、fingerprint 缺失等）说明 KEY 被接受
+            return True
         return None
     except urllib.error.HTTPError as e:
-        # HTTP 400/401/403 = KEY 无效或请求格式错误
+        # AcoustID 对所有错误都返回 HTTP 400（包括 KEY 无效和请求格式错误）
+        # 必须读取响应体区分错误类型
         if e.code in (400, 401, 403):
-            return False
+            try:
+                body = e.read().decode('utf-8', errors='replace')
+                err_data = json.loads(body)
+                error_msg = ''
+                err = err_data.get('error')
+                if isinstance(err, dict):
+                    error_msg = err.get('message', '')
+                elif isinstance(err, str):
+                    error_msg = err
+                error_lower = error_msg.lower()
+                # 只有 "api key" 相关错误才判定 KEY 无效
+                if 'api key' in error_lower or 'apikey' in error_lower:
+                    return False
+                # 其他错误（如 trackid 无效、参数缺失等）说明 KEY 被接受
+                return True
+            except Exception:
+                # 无法解析响应体，保守判定为无效
+                return False
         return None
     except Exception:
         return None
