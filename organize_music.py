@@ -896,6 +896,51 @@ def sanitize(name):
 # 专辑歌曲阈值：少于这个数的"专辑"降级为单曲处理
 ALBUM_MIN_TRACKS = 3
 
+# 修复(Bug GG)：整轨文件识别
+# 整轨文件：单个文件包含整张专辑（通常搭配 .cue 分轨文件）
+# 常见文件名：CDImage.ape/flac/wav, image.ape/flac, 整轨.flac 等
+# 修复前：整轨文件只有1个，被 <3 首规则降级为单曲，丢失专辑归属
+WHOLE_ALBUM_FILENAME_PATTERN = re.compile(
+    r'^(CDImage|cdimage|image|Image|CDIMAGE|整轨|整盤|整盤轉檔|CDimage|cd_image|cdimage\.wav)$',
+    re.IGNORECASE
+)
+# 整轨文件大小阈值（字节）：单文件 >50MB 且文件名无单曲特征时视为整轨
+WHOLE_ALBUM_MIN_SIZE = 50 * 1024 * 1024  # 50MB
+
+
+def _is_whole_album_file(filepath):
+    """
+    判断是否是整轨文件（单文件包含整张专辑）。
+    判据（满足任一）：
+    1. 文件名匹配整轨模式（CDImage/image/整轨 等）
+    2. 同目录存在同名 .cue 文件（cue 是分轨信息，存在则说明是整轨）
+    3. 文件 >50MB 且文件名是通用名（无歌手/歌名信息，如 image.flac）
+    """
+    p = Path(filepath)
+    stem = p.stem
+    name = p.name
+
+    # 判据1：文件名匹配整轨模式
+    if WHOLE_ALBUM_FILENAME_PATTERN.match(stem):
+        return True
+
+    # 判据2：同目录存在同名 .cue 文件
+    cue_file = p.with_suffix('.cue')
+    if cue_file.exists():
+        return True
+
+    # 判据3：文件 >50MB 且文件名是通用名（无连字符/点号分隔，长度短）
+    try:
+        size = p.stat().st_size
+        if size > WHOLE_ALBUM_MIN_SIZE:
+            # 通用名：无分隔符（- _ .），长度<=20，不是具体歌名
+            if not re.search(r'[-_.]', stem) and len(stem) <= 20:
+                return True
+    except OSError:
+        pass
+
+    return False
+
 
 # 全局国籍表，由 organize() 加载时填充（键为 display 名）
 _GLOBAL_NATIONALITIES = {}
@@ -1772,6 +1817,15 @@ def organize(source_dir, output_dir, name_map_path,
                     # 修复(Bug W)：演唱会文件不让刮削覆盖 artist（避免被改成录音室原唱）
                     if orig_meta.get('is_concert') and enriched.get('artist'):
                         enriched['artist'] = orig_meta.get('artist', '')
+                    # 修复(Bug FF)：目录推断的歌手(dir_artist)是用户整理标注，比刮削器可靠。
+                    # 当 dir_artist 有效时，拒绝刮削器覆盖 artist。
+                    # 案例：ZARD 的《素直に言えなくて》被网易云刮削器误识别成杨采妮
+                    # （杨采妮有同名翻唱版本），但源路径 /Zard/Single/... 明确是 ZARD。
+                    orig_dir_artist = orig_meta.get('dir_artist', '')
+                    if orig_dir_artist and orig_dir_artist != '未知' and \
+                       not _is_compilation_artist(orig_dir_artist) and \
+                       enriched.get('artist') and enriched['artist'] != orig_meta.get('artist', ''):
+                        enriched['artist'] = orig_meta.get('artist', '')
                     # 保留原始 is_concert 标记
                     enriched['is_concert'] = orig_meta.get('is_concert', False)
                     all_meta[orig_i] = enriched
@@ -2042,8 +2096,11 @@ def organize(source_dir, output_dir, name_map_path,
     group_items = list(groups.items())
     bar = ProgressBar("分组去重", len(group_items), unit="组")
     for i, ((artist, album), songs) in enumerate(group_items):
-        if album and len(songs) >= ALBUM_MIN_TRACKS:
-            # 专辑歌曲（3首以上）：去重
+        # 修复(Bug GG)：整轨文件（单文件含整张专辑，如 CDImage.ape + .cue）
+        # 即使只有1个文件也作为专辑保留，不降级为单曲
+        has_whole_album = any(_is_whole_album_file(s['source_path']) for s in songs)
+        if album and (len(songs) >= ALBUM_MIN_TRACKS or has_whole_album):
+            # 专辑歌曲（3首以上，或含整轨文件）：去重
             # 先统计哈希计算数（优化前需要计算所有文件，优化后只算大小相同的）
             import os as _os
             size_set = set()
@@ -2098,7 +2155,9 @@ def organize(source_dir, output_dir, name_map_path,
         folder = f"{year}-{album}"
         if is_concert:
             folder = f"演唱会-{folder}"
-        if _target_folder_counts[folder] < ALBUM_MIN_TRACKS:
+        # 修复(Bug GG)：整轨文件不参与小专辑降级（单文件即整张专辑）
+        is_whole = _is_whole_album_file(m['source_path'])
+        if _target_folder_counts[folder] < ALBUM_MIN_TRACKS and not is_whole:
             singleton_songs.append(m)
             _downgraded_bb += 1
         else:
