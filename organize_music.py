@@ -37,7 +37,7 @@ import hashlib
 import time
 import threading
 from pathlib import Path
-from collections import defaultdict
+from collections import defaultdict, Counter
 from datetime import datetime
 
 # 本地模块
@@ -760,10 +760,10 @@ def extract_metadata(filepath, encoding_fixed_count=None):
     # 修复(Bug S)：智能融合专辑名 —— tag 与目录名对比，取更可靠的
     # 演唱会/tag专辑名可疑时，目录名更可靠
     dir_album_raw = normalize_text(dir_info.get('album', '') or '')
-    if dir_album_raw:
-        dir_album_clean = _clean_album_name(dir_album_raw)
-        if dir_album_clean and dir_album_clean != album:
-            album = _choose_better_album(album, dir_album_clean)
+    dir_album_clean = _clean_album_name(dir_album_raw) if dir_album_raw else ''
+    if dir_album_clean and dir_album_clean != album:
+        album = _choose_better_album(album, dir_album_clean)
+    dir_year = dir_info.get('year', '') or ''
 
     # 年份提取：分离 tag 年份和目录/文件名年份
     # tag 年份中的当前年份通常是软件处理日期，不可靠；目录名年份是用户标注，更可靠
@@ -798,6 +798,8 @@ def extract_metadata(filepath, encoding_fixed_count=None):
         'tag_source': 'tags' if tags.get('title') else 'filename',
         'encoding_fixed': was_fixed,
         'dir_artist': normalize_text(dir_info.get('artist', '')),  # 目录推断的歌手，用于保持专辑完整性
+        'dir_album': dir_album_clean,  # 目录推断的专辑名，用于源目录归组对齐(Bug EE)
+        'dir_year': dir_year,  # 目录推断的年份，用于源目录归组对齐(Bug EE)
         'is_concert': detect_concert(filepath),  # 标记演唱会资源：文件夹名前加"演唱会-"标识+不触发刮削改写
     }
 
@@ -1964,6 +1966,54 @@ def organize(source_dir, output_dir, name_map_path,
     print("[6/8] 按歌手和专辑分组，执行去重...")
     import time as _time
     _t6_start = _time.time()
+
+    # 修复(Bug EE): 同一源专辑目录内 tag album/year 不一致
+    # （大小写 JAY/Jay、异体字 肖邦/萧邦、tag错误 魔天伦/魔杰座、tag date 年份不同），
+    # 导致同一专辑被拆散到多个目标文件夹。
+    # 方案：按源专辑目录预归组，统一 album 和 year（目录推断优先，否则取组内频次最高）。
+    # 原则：源目录是用户整理时定义的专辑边界，比 tag 更可靠。
+    src_dir_groups = defaultdict(list)
+    for meta in all_meta:
+        src_dir = str(Path(meta['source_path']).parent)
+        src_dir_groups[src_dir].append(meta)
+
+    aligned_album = 0
+    aligned_year = 0
+    for src_dir, metas in src_dir_groups.items():
+        if len(metas) <= 1:
+            continue
+        # 统一 album：处理多版本差异 + 空 album 填充
+        albums_all = [m.get('album', '') for m in metas]
+        albums_nonempty = [a for a in albums_all if a]
+        if albums_nonempty:
+            # 确定统一值：目录推断优先，否则取频次最高
+            dir_albums = [m.get('dir_album', '') for m in metas if m.get('dir_album')]
+            if dir_albums:
+                unified_album = Counter(dir_albums).most_common(1)[0][0]
+            else:
+                unified_album = Counter(albums_nonempty).most_common(1)[0][0]
+            # 需要统一的条件：存在多版本差异，或存在空 album 需填充
+            if len(set(albums_nonempty)) > 1 or '' in albums_all:
+                for m in metas:
+                    if m.get('album', '') != unified_album:
+                        m['album'] = unified_album
+                        aligned_album += 1
+        # 统一 year：同理
+        years_all = [m.get('year', '') for m in metas]
+        years_nonempty = [y for y in years_all if y]
+        if years_nonempty:
+            dir_years = [m.get('dir_year', '') for m in metas if m.get('dir_year')]
+            if dir_years:
+                unified_year = Counter(dir_years).most_common(1)[0][0]
+            else:
+                unified_year = Counter(years_nonempty).most_common(1)[0][0]
+            if len(set(years_nonempty)) > 1 or '' in years_all:
+                for m in metas:
+                    if m.get('year', '') != unified_year:
+                        m['year'] = unified_year
+                        aligned_year += 1
+    if aligned_album or aligned_year:
+        print(f"  源目录归组对齐: 统一 {aligned_album} 首专辑名, {aligned_year} 首年份(Bug EE)")
 
     groups = defaultdict(list)
     for meta in all_meta:
