@@ -1,31 +1,43 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-飞牛NAS 音乐库一键整理工具 v1.0
+飞牛NAS 音乐库一键整理工具 v1.3.0
 =============================================
 功能：
   1. 递归扫描源目录所有音频文件（支持任意层级错乱）
   2. 修复乱码标签（GBK/GB18030/BIG5 -> UTF-8）
   3. 读取标签 + 文件名 + 目录结构，提取歌手/专辑/歌名/年份
   4. 识别 feat. 合作方，拆分到标题
-  5. 歌手名规范化：语言检测、模糊去重、MusicBrainz别名查询
-  6. 网络刮削：MusicBrainz API 补全缺失的专辑/年份信息
-  7. 音频指纹识别：信息全缺时通过 AcoustID 查询
-  8. 保留原专辑序号前缀（如 01-）
-  9. 去重校验：歌手文件夹、同专辑内歌曲去重
- 10. 按规则复制到新目录（原文件不动）
- 11. 补充缺失标签到复制后的新文件
- 12. 生成整理报告 + 歌手列表
+  5. 歌手名规范化：语言检测、模糊去重、MusicBrainz别名查询、
+     中文名-英文名"XX-YY"格式、多刮削源歌手别名补全
+  6. 演唱会专辑识别：文件名前缀"演唱会-"标识（不混入录音室专辑）
+  7. 三源并发网络刮削：网易云音乐 > MusicBrainz > 酷狗音乐
+     自动补全缺失的专辑/年份/歌手信息，滚动日志防卡死
+  8. 音频指纹识别：Shazam（最高优先级）+ AcoustID（兜底），
+     API KEY 有效性自动校验
+  9. 保留原专辑序号前缀（如 01-），支持多碟专辑合并
+ 10. 去重校验：文件大小 + MD5 双级哈希去重
+ 11. 按规则复制到新目录（原文件不动），同步复制封面/视频/cue
+ 12. 补充缺失标签到复制后的新文件
+ 13. 生成整理报告 + 歌手列表 + 详细操作日志
+ 14. 支持 DSD 音频格式（DSF/DFF）
+ 15. 整轨文件（CDImage + .cue）识别为专辑保留
+ 16. 源目录预归组：同一目录内 tag 不一致（大小写/异体字/年份）
+     自动对齐，避免专辑拆散
+ 17. 小专辑降级：<3 首的目标文件夹自动降级为单曲归入"其他"
+ 18. 广告/无关信息自动过滤
 
 目标结构:
-  /music2/歌手/年份-专辑/序号-歌曲名-歌手-专辑.ext   (专辑歌曲)
-  /music2/歌手/其他/序号-歌曲名-歌手.ext             (零散歌曲)
+  /music2/歌手/年份-专辑/序号-歌曲名-歌手-专辑.ext           (专辑歌曲)
+  /music2/歌手/演唱会-年份-专辑/序号-歌曲名-歌手-专辑.ext     (演唱会专辑)
+  /music2/歌手/其他/序号-歌曲名-歌手.ext                     (零散歌曲/单曲)
 
 用法:
   python3 organize_music.py --source /music --output /music2
   python3 organize_music.py -s /music -o /music2 --dry-run
-  python3 organize_music.py -s /music -o /music2 --write-tags --scrape
+  python3 organize_music.py -s /music -o /music2 --scrape
   python3 organize_music.py -s /music -o /music2 --fingerprint
+  python3 organize_music.py -s /music -o /music2 --scrape --fingerprint
 """
 
 import os
