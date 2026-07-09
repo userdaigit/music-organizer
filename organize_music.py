@@ -54,7 +54,8 @@ from progress import ProgressBar, progress_iter
 # ============================================================
 AUDIO_EXTENSIONS = {
     '.mp3', '.flac', '.m4a', '.aac', '.ogg', '.wma',
-    '.wav', '.ape', '.alac', '.opus', '.aiff', '.wv'
+    '.wav', '.ape', '.alac', '.opus', '.aiff', '.wv',
+    '.dsf', '.dff'  # DSD 音频格式
 }
 
 FEAT_PATTERN = re.compile(
@@ -2147,6 +2148,68 @@ def organize(source_dir, output_dir, name_map_path,
 
         bar.update(task_idx + 1)
     bar.finish()
+
+    # 7b. 复制完整专辑文件夹中的非音频文件（封面/视频/cue等）
+    # 修复(Bug DD)：原逻辑只复制音频文件，遗漏同目录下的封面图片、MV视频、cue等
+    if not dry_run:
+        print()
+        print("[7b/8] 复制专辑附加文件（封面/视频/cue等）...")
+        extra_copied = 0
+        extra_skipped = 0
+
+        # 收集所有已复制的专辑目录: 源专辑目录 -> 目标专辑目录
+        # 只处理专辑歌曲（非单曲），单曲的"其他"目录不复制附加文件
+        album_dir_mapping = {}  # 源专辑目录 -> 目标专辑目录
+        for meta in album_songs:
+            src_path = Path(meta['source_path'])
+            src_album_dir = src_path.parent  # 源专辑目录
+            if str(src_album_dir) in album_dir_mapping:
+                continue
+            # 构建目标专辑目录
+            raw_dir = meta.get('dir_artist', '')
+            if raw_dir and raw_dir != '未知' and raw_dir != '未知歌手':
+                group_artist = raw_dir
+            else:
+                group_artist = meta['artist']
+            artist_canonical = artist_mapping.get(group_artist, group_artist)
+            target_rel = build_target_path(meta, False, artist_canonical)
+            # target_rel = 歌手/年份-专辑/文件名，取目录部分
+            target_album_dir = Path(output_dir) / Path(target_rel).parent
+            album_dir_mapping[str(src_album_dir)] = target_album_dir
+
+        bar = ProgressBar("复制附加文件", len(album_dir_mapping), unit="目录")
+        for idx, (src_dir_str, target_dir) in enumerate(album_dir_mapping.items()):
+            src_dir = Path(src_dir_str)
+            try:
+                if not src_dir.is_dir():
+                    bar.update(idx + 1)
+                    continue
+                # 扫描源目录中的所有非音频文件
+                for item in src_dir.iterdir():
+                    if item.is_file() and not item.name.startswith('.'):
+                        ext = item.suffix.lower()
+                        if ext not in AUDIO_EXTENSIONS:
+                            # 复制非音频文件到目标专辑目录
+                            dst_file = target_dir / item.name
+                            if dst_file.exists():
+                                extra_skipped += 1
+                                continue
+                            try:
+                                target_dir.mkdir(parents=True, exist_ok=True)
+                                try:
+                                    shutil.copy2(str(item), str(dst_file))
+                                except OSError:
+                                    shutil.copy(str(item), str(dst_file))
+                                extra_copied += 1
+                            except OSError:
+                                extra_skipped += 1
+            except OSError:
+                pass
+            bar.update(idx + 1)
+        bar.finish()
+
+        if extra_copied or extra_skipped:
+            print(f"  附加文件: 复制 {extra_copied}, 跳过 {extra_skipped}")
 
     # 8. 导出报告
     print()
