@@ -131,14 +131,17 @@ def _is_compilation_artist(name):
 def detect_concert(filepath):
     """
     检测文件路径是否属于演唱会/Live/Concert 资源。
-    扫描路径的所有父目录名和文件名，只要任一包含关键词即判定为演唱会。
+    只扫描目录名（不含文件名），因为演唱会是专辑级概念，由目录名决定。
+    修复(Bug CC)：原代码扫描文件名，导致文件名含"Live"的非演唱会歌曲被误判，
+    同一专辑被拆散到录音室和演唱会两个目录。
     返回: True/False
     """
     try:
         parts = list(filepath.parts)
     except Exception:
         parts = str(filepath).replace('\\', '/').split('/')
-    for p in parts:
+    # 只扫描目录名（排除最后一个部分=文件名）
+    for p in parts[:-1]:
         if CONCERT_PATTERN.search(p):
             return True
     return False
@@ -2022,6 +2025,36 @@ def organize(source_dir, output_dir, name_map_path,
     print(f"  去重: {total_dups} 首(转为零散保留)")
     if hash_computed > 0:
         print(f"  哈希计算: {hash_computed} 首(仅大小相同的文件)")
+
+    # 修复(Bug BB): 小专辑降级 — 预计算目标文件夹，只有1-2首歌的降级为单曲放到"其他"
+    # 避免"单曲"等专辑因年份分叉产生大量只有1首歌的专辑文件夹
+    _target_folder_counts = defaultdict(int)
+    for m in album_songs:
+        year = m.get('year') or '未知'
+        album = m.get('album') or '未知专辑'
+        is_concert = m.get('is_concert', False)
+        folder = f"{year}-{album}"
+        if is_concert:
+            folder = f"演唱会-{folder}"
+        _target_folder_counts[folder] += 1
+
+    _downgraded_bb = 0
+    _kept_album = []
+    for m in album_songs:
+        year = m.get('year') or '未知'
+        album = m.get('album') or '未知专辑'
+        is_concert = m.get('is_concert', False)
+        folder = f"{year}-{album}"
+        if is_concert:
+            folder = f"演唱会-{folder}"
+        if _target_folder_counts[folder] < ALBUM_MIN_TRACKS:
+            singleton_songs.append(m)
+            _downgraded_bb += 1
+        else:
+            _kept_album.append(m)
+    album_songs = _kept_album
+    if _downgraded_bb:
+        print(f"  小专辑降级: {_downgraded_bb} 首(目标文件夹<3首,转入'其他')")
 
     # feat. 统计
     feat_count = sum(1 for m in all_meta if m.get('feat'))
